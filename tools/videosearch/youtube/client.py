@@ -24,7 +24,11 @@ _YT_API_BASE = "https://www.googleapis.com/youtube/v3"
 # Public entry point
 # ---------------------------------------------------------------------------
 
-def search_videos(query: str, max_results: int = 5) -> List[dict]:
+def search_videos(
+    query: str,
+    max_results: int = 5,
+    language: str | None = None,
+) -> List[dict]:
     """Search for YouTube videos and return metadata dicts.
 
     Tries the YouTube Data API v3 first.  If that fails for *any* reason
@@ -34,6 +38,7 @@ def search_videos(query: str, max_results: int = 5) -> List[dict]:
     Args:
         query: Search query for videos.
         max_results: Maximum number of videos to return (default: 5).
+        language: ISO 639-1 language code (e.g. "es", "en") to bias results.
 
     Returns:
         List of dicts, each with keys: title, url, duration, published_at,
@@ -44,7 +49,7 @@ def search_videos(query: str, max_results: int = 5) -> List[dict]:
 
     if api_key:
         try:
-            return _search_via_api(query, max_results, api_key)
+            return _search_via_api(query, max_results, api_key, language=language)
         except Exception as exc:
             logger.warning(
                 "YouTube Data API failed (%s), falling back to yt-dlp flat extraction",
@@ -58,18 +63,27 @@ def search_videos(query: str, max_results: int = 5) -> List[dict]:
 # YouTube Data API v3
 # ---------------------------------------------------------------------------
 
-def _search_via_api(query: str, max_results: int, api_key: str) -> List[dict]:
+def _search_via_api(
+    query: str,
+    max_results: int,
+    api_key: str,
+    language: str | None = None,
+) -> List[dict]:
     """Search using YouTube Data API v3 (search.list + videos.list)."""
     # Step 1 – search.list  (costs 100 quota units)
+    params: dict = {
+        "part": "snippet",
+        "q": query,
+        "type": "video",
+        "maxResults": max_results,
+        "key": api_key,
+    }
+    if language:
+        params["relevanceLanguage"] = language
+
     search_resp = requests.get(
         f"{_YT_API_BASE}/search",
-        params={
-            "part": "snippet",
-            "q": query,
-            "type": "video",
-            "maxResults": max_results,
-            "key": api_key,
-        },
+        params=params,
         timeout=15,
     )
     search_resp.raise_for_status()

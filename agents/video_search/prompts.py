@@ -26,25 +26,37 @@ Return ONLY the search query, nothing else.""")
 # ---- Multi-Query Video Generation Prompt ----
 video_multi_query_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are an expert at creating YouTube search queries for educational content.
-Your task is to generate multiple search queries that will find highly relevant educational videos.
+Your task is to generate multiple short search queries that will find highly relevant educational videos.
 
 You must generate:
 1. ONE general query about the overall module theme
 2. Multiple specific queries about concrete concepts, terms, or techniques mentioned in the module
 
-IMPORTANT GUIDELINES:
-- Each query should be 4-8 words, optimized for YouTube search
-- Specific queries must target CONCRETE concepts from the key topics (named techniques, specific terms, particular methods)
-- Specific queries should NOT be variations of the general theme - they must focus on distinct, concrete sub-topics
-- Use the target language for all queries
-- Include educational keywords like "tutorial", "explained", "introduction", or equivalents in the target language
+CRITICAL RULES:
+- Each query MUST be 3-6 words. No exceptions. Think like a student typing into YouTube.
+- Use simple, everyday vocabulary — never academic jargon or formal titles.
+- Include one educational keyword per query: "tutorial", "explicado", "qué es", "cómo", "introduction", "explained", etc.
+- Specific queries must target DISTINCT concrete sub-topics, not rephrase the general theme.
+- Use the target language for all queries.
+
+GOOD query examples (short, natural, YouTube-friendly):
+- "reanimación neonatal tutorial"
+- "método canguro recién nacido"
+- "cuidado cordón umbilical bebé"
+- "machine learning introduction tutorial"
+- "qué es fotosíntesis explicado"
+
+BAD query examples (too long, too academic — NEVER do this):
+- "protocolo reanimación neonatal OMS y AAP paso a paso" (too long, too specific)
+- "Convención Derechos del Niño UNICEF en neonatología tutorial" (academic jargon)
+- "limpieza cordón umbilical con clorhexidina vs alcohol evidencia científica" (research paper title)
 
 Output your response as valid JSON with this exact structure:
 {{
-  "general_query": "module theme educational video",
-  "specific_queries": ["concrete concept 1 tutorial", "specific term 2 explained"]
+  "general_query": "module theme tutorial",
+  "specific_queries": ["concept one explicado", "concept two tutorial"]
 }}"""),
-    
+
     ("human", """Generate YouTube search queries for educational videos about this module:
 
 Course Title: {course_title}
@@ -56,8 +68,7 @@ Key Topics:
 Target Language: {language}
 Number of specific queries needed: {num_specific_queries}
 
-Generate 1 general query for the module theme AND {num_specific_queries} specific queries for concrete concepts from the key topics.
-Each specific query should target a DISTINCT concrete concept, technique, or term - not just rephrase the general theme.
+Remember: each query MUST be 3-6 words, written like a real YouTube search. No long academic phrases.
 
 Return ONLY the JSON object, no additional text.""")
 ])
