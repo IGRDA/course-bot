@@ -114,7 +114,7 @@ if __name__ == "__main__":
         use_vision_ranking=False,  # Use vision LLM to rank images
         num_images_to_fetch=8,  # Number of images to fetch for ranking
         vision_llm_provider="pixtral",  # Vision LLM provider
-        image_concurrency=10,  # Number of image blocks to process in parallel
+        image_concurrency=3,  # Number of image blocks to process in parallel
         # Video generation configuration
         generate_videos=True,  # Enable video recommendations
         videos_per_module=3,   # Number of videos per module

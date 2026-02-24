@@ -23,7 +23,7 @@ class ImageConfig(BaseModel):
         description="Vision LLM provider for image ranking (pixtral)"
     )
     concurrency: int = Field(
-        default=10,
+        default=3,
         description="Number of image blocks to process in parallel"
     )
     imagetext2text_concurrency: int = Field(

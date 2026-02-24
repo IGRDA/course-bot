@@ -160,7 +160,7 @@ Examples:
         use_vision_ranking=args.vision_ranking,
         num_images_to_fetch=8,
         vision_llm_provider="pixtral",
-        image_concurrency=10,
+        image_concurrency=3,
         imagetext2text_concurrency=5,
         vision_ranking_batch_size=8,
         # Bibliography configuration (enabled by default for books)

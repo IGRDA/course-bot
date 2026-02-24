@@ -6,8 +6,9 @@ those heavy browser-automation packages.
 """
 
 import atexit
+import time
 import threading
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
 from urllib.parse import quote
 
 if TYPE_CHECKING:
@@ -130,80 +131,142 @@ class FreepikClient:
         if self._request_count >= self._max_requests_before_refresh:
             self._create_context()
     
-    def search_images(self, query: str, max_results: int = 5) -> List[dict]:
+    _BLOCK_TITLES = ["access denied", "attention required", "just a moment", "blocked", "error", "forbidden"]
+    _BLOCK_BODY_KEYWORDS = [
+        "access denied", "captcha", "blocked", "rate limit",
+        "please verify", "unusual traffic", "security check",
+    ]
+
+    def _detect_block(self, response) -> Tuple[bool, str]:
+        """Check if Freepik/Akamai served a block page instead of real results.
+
+        Inspects the HTTP status, page title, and visible body text for
+        common anti-bot / WAF indicators.
         """
-        Search for images on Freepik using web scraping.
-        
-        Args:
-            query: Search query for images
-            max_results: Maximum number of images to return (default: 5)
-            
+        if response and response.status == 403:
+            return True, "HTTP 403 Forbidden"
+
+        try:
+            title = self._page.title().lower()
+        except Exception:
+            title = ""
+        for bt in self._BLOCK_TITLES:
+            if bt in title:
+                return True, f"Block page title: '{self._page.title()}'"
+
+        try:
+            body_text = self._page.inner_text("body")[:500].lower()
+        except Exception:
+            body_text = ""
+        for kw in self._BLOCK_BODY_KEYWORDS:
+            if kw in body_text:
+                return True, f"Block keyword in body: '{kw}'"
+
+        return False, ""
+
+    def _search_once(self, query: str, max_results: int) -> Tuple[List[dict], bool, str]:
+        """Execute a single search attempt and return results with block info.
+
         Returns:
-            List of image results with URLs and metadata
+            (results, is_blocked, block_reason) where *results* is an empty
+            list when no valid images were found.
         """
         try:
             self._ensure_fresh_context()
-            
-            # Build search URL
+
             search_url = f"https://www.freepik.com/search?format=search&query={quote(query)}"
-            
-            # Navigate with faster wait strategy
-            self._page.goto(search_url, wait_until='domcontentloaded', timeout=15000)
-            
-            # Wait for images to appear (faster than networkidle)
+
+            response = self._page.goto(search_url, wait_until='domcontentloaded', timeout=15000)
+
             try:
                 self._page.wait_for_selector('figure img[src]', timeout=5000, state='attached')
             except Exception:
-                pass  # Continue even if timeout - might still have images
-            
-            # Minimal additional wait for dynamic content
+                pass
+
             self._page.wait_for_timeout(200)
-            
-            results = []
-            
-            # Find image elements
+
+            results: List[dict] = []
             image_elements = self._page.query_selector_all('figure img[src], img[data-src]')
-            
-            for img_element in image_elements[:max_results * 2]:  # Get more to filter
+
+            for img_element in image_elements[:max_results * 2]:
                 try:
-                    # Get image URL from src or data-src
                     image_url = img_element.get_attribute('src') or img_element.get_attribute('data-src')
-                    
-                    # Skip placeholders and loading images
                     if not image_url or 'placeholder' in image_url.lower() or 'loading' in image_url.lower():
                         continue
-                    
-                    # Get alt text as description
+
                     description = img_element.get_attribute('alt') or "No description"
-                    
-                    # Try to get parent link for page URL
                     page_url = ""
                     try:
                         page_url = img_element.evaluate('el => el.closest("a")?.href || ""')
                     except Exception:
                         pass
-                    
+
                     results.append({
                         "url": image_url,
                         "thumbnail_url": image_url,
                         "description": description,
                         "author": "Freepik",
-                        "page_url": page_url
+                        "page_url": page_url,
                     })
-                    
                     if len(results) >= max_results:
                         break
-                        
                 except Exception:
                     continue
-            
-            return results if results else [{"error": "No images found"}]
-            
+
+            if results:
+                return results, False, ""
+
+            is_blocked, reason = self._detect_block(response)
+            return [], is_blocked, reason if is_blocked else "No images found"
+
         except Exception as e:
             error_msg = str(e)
             if 'timeout' in error_msg.lower():
-                return [{"error": "Timeout waiting for images. Freepik may be blocking requests."}]
-            return [{"error": f"Error scraping Freepik: {error_msg}"}]
+                return [], True, "Navigation timeout (possible block)"
+            return [], False, f"Error scraping Freepik: {error_msg}"
+
+    def search_images(self, query: str, max_results: int = 5) -> List[dict]:
+        """Search for images on Freepik with automatic block detection and retry.
+
+        When a block/rate-limit is detected (HTTP 403, challenge page, or
+        zero results with block signals), the client refreshes its browser
+        context and retries with exponential backoff (2 s, 4 s, 8 s).
+
+        Args:
+            query: Search query for images
+            max_results: Maximum number of images to return (default: 5)
+
+        Returns:
+            List of image results with URLs and metadata.  On persistent
+            blocking the list contains a single dict with ``"error"`` and
+            ``"blocked": True``.
+        """
+        max_retries = 3
+        base_delay = 2.0
+        last_reason = ""
+
+        for attempt in range(1 + max_retries):
+            results, is_blocked, reason = self._search_once(query, max_results)
+
+            if results:
+                if attempt > 0:
+                    print(f"   ✅ Freepik retry {attempt} succeeded for '{query}'")
+                return results
+
+            last_reason = reason
+
+            # Not blocked and first attempt → genuine "no images"
+            if not is_blocked and attempt == 0:
+                return [{"error": "No images found"}]
+
+            if attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                print(f"   ⚠️ Freepik block detected ({reason}), "
+                      f"retry {attempt + 1}/{max_retries} in {delay:.0f}s…")
+                self._create_context()
+                time.sleep(delay)
+
+        return [{"error": f"Blocked by Freepik after {max_retries} retries: {last_reason}", "blocked": True}]
     
     def close(self) -> None:
         """Clean up browser resources for this instance."""

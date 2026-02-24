@@ -698,7 +698,7 @@ if __name__ == "__main__":
     USE_VISION_RANKING = False  # Set to True to rank images with Pixtral, False to pick first result
     NUM_IMAGES_TO_FETCH = 8  # Number of images to fetch for ranking (only used if USE_VISION_RANKING=True)
     VISION_PROVIDER = "pixtral"  # Vision LLM for ranking
-    IMAGE_CONCURRENCY = 10  # Number of blocks to process in parallel
+    IMAGE_CONCURRENCY = 3  # Number of blocks to process in parallel
     IMAGETEXT2TEXT_CONCURRENCY = 5  # Number of Pixtral calls in parallel for image scoring
     VISION_RANKING_BATCH_SIZE = 8
     

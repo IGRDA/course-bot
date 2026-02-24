@@ -9,6 +9,7 @@ Searches for video recommendations for course modules using:
 
 import json
 import logging
+import re
 from typing import Optional
 
 from langchain_core.output_parsers import StrOutputParser
@@ -31,6 +32,27 @@ logger = logging.getLogger(__name__)
 # Minimum view count threshold for quality filtering
 MIN_VIDEO_VIEWS = 5000
 
+# Map common course language names to ISO 639-1 codes for YouTube API
+_LANGUAGE_MAP: dict[str, str] = {
+    "español": "es", "spanish": "es", "espanol": "es",
+    "english": "en", "inglés": "en", "ingles": "en",
+    "français": "fr", "french": "fr", "frances": "fr",
+    "português": "pt", "portuguese": "pt", "portugues": "pt",
+    "deutsch": "de", "german": "de", "alemán": "de",
+    "italiano": "it", "italian": "it",
+    "中文": "zh", "chinese": "zh",
+    "日本語": "ja", "japanese": "ja",
+    "한국어": "ko", "korean": "ko",
+}
+
+
+def _language_to_iso(language: str) -> str | None:
+    """Convert a course language name to an ISO 639-1 code."""
+    key = language.strip().lower()
+    if len(key) == 2:
+        return key
+    return _LANGUAGE_MAP.get(key)
+
 
 def _extract_module_topics(module: Module) -> str:
     """
@@ -51,6 +73,22 @@ def _extract_module_topics(module: Module) -> str:
     
     # Limit to avoid overly long prompts
     return "\n".join(topics[:20])
+
+
+MAX_QUERY_WORDS = 8
+
+
+def _sanitize_query(query: str) -> str:
+    """Enforce word-count cap and clean up a search query."""
+    query = re.sub(r"[\"'`]", "", query).strip()
+    words = query.split()
+    if len(words) > MAX_QUERY_WORDS:
+        logger.warning(
+            "Truncating query from %d to %d words: '%s'",
+            len(words), MAX_QUERY_WORDS, query,
+        )
+        words = words[:MAX_QUERY_WORDS]
+    return " ".join(words)
 
 
 def _strip_markdown_fences(text: str) -> str:
@@ -116,6 +154,10 @@ def _generate_video_queries(
         # Limit specific queries to what we need
         specific_queries = specific_queries[:num_specific]
         
+        # Enforce word-count cap on all queries
+        general_query = _sanitize_query(general_query)
+        specific_queries = [_sanitize_query(q) for q in specific_queries]
+        
         return {
             "general_query": general_query,
             "specific_queries": specific_queries,
@@ -128,7 +170,7 @@ def _generate_video_queries(
         if not fallback_query or len(fallback_query) > 100:
             fallback_query = f"{module.title} tutorial {language}"
         return {
-            "general_query": fallback_query,
+            "general_query": _sanitize_query(fallback_query),
             "specific_queries": [],
         }
 
@@ -166,20 +208,58 @@ def _convert_result_to_video(result: dict) -> VideoReference | None:
     )
 
 
+_STOPWORDS = frozenset(
+    "el la los las un una unos unas de del en con por para al a y o que es "
+    "the of and in to a is for on with at by an be this that from or as it".split()
+)
+
+
+def _extract_keywords(text: str) -> set[str]:
+    """Extract meaningful lowercase keywords, stripping stopwords."""
+    words = re.findall(r"\w+", text.lower())
+    return {w for w in words if w not in _STOPWORDS and len(w) > 2}
+
+
+def _relevance_score(video_title: str, keywords: set[str]) -> int:
+    """Count how many keywords appear in the video title."""
+    title_words = _extract_keywords(video_title)
+    return len(title_words & keywords)
+
+
+def _rank_results(
+    results: list[dict],
+    keywords: set[str],
+) -> list[dict]:
+    """Sort search results by (relevance, views, likes) descending."""
+    def sort_key(r: dict):
+        return (
+            _relevance_score(r.get("title", ""), keywords),
+            r.get("views", 0),
+            r.get("likes", 0),
+        )
+    return sorted(results, key=sort_key, reverse=True)
+
+
 def _select_videos_from_queries(
     general_results: list[dict],
     specific_results: dict[str, list[dict]],
     num_videos: int,
+    module_title: str = "",
 ) -> list[VideoReference]:
     """
-    Select videos from query results with deduplication.
+    Select videos from query results with relevance scoring and deduplication.
     
-    Selection order: general first, then specific queries in order.
+    For each result set, candidates are ranked by keyword relevance to the
+    module title and query, then by views and likes. The MIN_VIDEO_VIEWS
+    filter is applied first (inside _convert_result_to_video).
+    
+    Selection order: best from general, then best from each specific query.
     
     Args:
         general_results: Results from general query search
         specific_results: Dict mapping specific query -> results list
         num_videos: Target number of videos to select
+        module_title: Module title for keyword extraction
         
     Returns:
         List of VideoReference, deduplicated by URL
@@ -187,29 +267,42 @@ def _select_videos_from_queries(
     videos: list[VideoReference] = []
     used_urls: set[str] = set()
     
-    def add_first_valid_video(results: list[dict]) -> bool:
-        """Add first valid video from results that isn't already used. Returns True if added."""
-        for result in results:
+    base_keywords = _extract_keywords(module_title)
+    
+    def add_best_valid_video(results: list[dict], query: str = "") -> bool:
+        """Add best-scoring valid video from results. Returns True if added."""
+        query_keywords = base_keywords | _extract_keywords(query)
+        ranked = _rank_results(results, query_keywords)
+        for result in ranked:
             video = _convert_result_to_video(result)
             if video and video.url and video.url not in used_urls:
+                score = _relevance_score(result.get("title", ""), query_keywords)
+                logger.debug(
+                    "Selected video (score=%d, views=%d): %s",
+                    score, video.views, video.title,
+                )
                 videos.append(video)
                 used_urls.add(video.url)
                 return True
         return False
     
-    # 1. FIRST: Add 1 video from general query
-    add_first_valid_video(general_results)
+    # 1. FIRST: Add best video from general query
+    add_best_valid_video(general_results)
     
-    # 2. THEN: Add 1 video from each specific query (in order)
+    # 2. THEN: Add best video from each specific query (in order)
     for query, results in specific_results.items():
         if len(videos) >= num_videos:
             break
-        if add_first_valid_video(results):
+        if add_best_valid_video(results, query):
             logger.debug(f"Added video from specific query: {query}")
     
-    # 3. FILL: If we still need more, add remaining from general query
+    # 3. FILL: If we still need more, add remaining from general (ranked)
     if len(videos) < num_videos:
-        for result in general_results:
+        all_keywords = base_keywords
+        for q in specific_results:
+            all_keywords |= _extract_keywords(q)
+        ranked_general = _rank_results(general_results, all_keywords)
+        for result in ranked_general:
             if len(videos) >= num_videos:
                 break
             video = _convert_result_to_video(result)
@@ -265,6 +358,8 @@ def generate_module_videos(
     general_query = queries_data["general_query"]
     specific_queries = queries_data["specific_queries"]
     
+    lang_code = _language_to_iso(language)
+    
     print(f"      🔍 General: {general_query}")
     for i, sq in enumerate(specific_queries, 1):
         print(f"      🔍 Specific {i}: {sq}")
@@ -274,7 +369,9 @@ def generate_module_videos(
     
     # Search general query (fetch extra to account for filtering)
     try:
-        general_results = search_videos(general_query, max_results=num_videos * 3)
+        general_results = search_videos(
+            general_query, max_results=num_videos * 3, language=lang_code,
+        )
     except Exception as e:
         logger.error(f"General video search failed: {e}")
         general_results = []
@@ -283,19 +380,44 @@ def generate_module_videos(
     specific_results: dict[str, list[dict]] = {}
     for sq in specific_queries:
         try:
-            specific_results[sq] = search_videos(sq, max_results=3)
+            specific_results[sq] = search_videos(sq, max_results=3, language=lang_code)
         except Exception as e:
             logger.error(f"Specific video search failed for '{sq}': {e}")
             specific_results[sq] = []
     
-    # 3. Select videos with deduplication (general first, then specific)
+    # 3. Select videos with relevance scoring, dedup, views/likes filter
     videos = _select_videos_from_queries(
         general_results=general_results,
         specific_results=specific_results,
         num_videos=num_videos,
+        module_title=module.title,
     )
     
-    # 4. Store all queries (pipe-separated)
+    # 4. Fallback: if too few videos, try a broad simplified query
+    if len(videos) < num_videos:
+        first_sub_title = (
+            module.submodules[0].title if module.submodules else ""
+        )
+        fallback_q = _sanitize_query(f"{course_title} {first_sub_title} tutorial")
+        logger.info("Fallback search with broad query: '%s'", fallback_q)
+        print(f"      🔄 Fallback: {fallback_q}")
+        try:
+            fallback_results = search_videos(
+                fallback_q, max_results=num_videos * 3, language=lang_code,
+            )
+            used_urls = {v.url for v in videos}
+            keywords = _extract_keywords(module.title)
+            for result in _rank_results(fallback_results, keywords):
+                if len(videos) >= num_videos:
+                    break
+                video = _convert_result_to_video(result)
+                if video and video.url and video.url not in used_urls:
+                    videos.append(video)
+                    used_urls.add(video.url)
+        except Exception as e:
+            logger.error(f"Fallback video search failed: {e}")
+    
+    # 5. Store all queries (pipe-separated)
     all_queries = [general_query] + specific_queries
     combined_query = " | ".join(all_queries)
     

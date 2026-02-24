@@ -5,13 +5,14 @@ import requests
 import re
 
 
-def search_videos(query: str, max_results: int = 5) -> List[dict]:
+def search_videos(query: str, max_results: int = 5, **kwargs) -> List[dict]:
     """
     Search for YouTube videos using a simple scraping approach.
     
     Args:
         query: Search query for videos
         max_results: Maximum number of videos to return (default: 5)
+        **kwargs: Accepted for interface compatibility (language, etc.)
         
     Returns:
         List of video results with YouTube URLs

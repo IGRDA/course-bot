@@ -1,7 +1,10 @@
 import os
 
 from langchain_mistralai import ChatMistralAI
+from pydantic import PrivateAttr, SecretStr
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+from LLMs.api_keys import get_random_key, mask_key, parse_api_keys
 
 
 def _log_retry(retry_state):
@@ -10,8 +13,15 @@ def _log_retry(retry_state):
 
 
 class ChatMistral(ChatMistralAI):
-    """ChatMistralAI with exponential backoff retry (20s-500s)."""
-    
+    """ChatMistralAI with exponential backoff retry and multi-key rotation."""
+
+    _api_keys: list[str] = PrivateAttr(default_factory=list)
+
+    def _rotate_api_key(self):
+        if self._api_keys:
+            key = get_random_key(self._api_keys)
+            self.mistral_api_key = SecretStr(key)
+
     def _generate(self, *args, **kwargs):
         @retry(
             stop=stop_after_attempt(10),
@@ -20,9 +30,10 @@ class ChatMistral(ChatMistralAI):
             before_sleep=_log_retry
         )
         def _call():
+            self._rotate_api_key()
             return super(ChatMistral, self)._generate(*args, **kwargs)
         return _call()
-    
+
     async def _agenerate(self, *args, **kwargs):
         @retry(
             stop=stop_after_attempt(10),
@@ -31,6 +42,7 @@ class ChatMistral(ChatMistralAI):
             before_sleep=_log_retry
         )
         async def _acall():
+            self._rotate_api_key()
             return await super(ChatMistral, self)._agenerate(*args, **kwargs)
         return await _acall()
 
@@ -45,17 +57,22 @@ def build_mistral_chat_model(
     model = model_name or os.getenv("MISTRAL_MODEL_NAME")
     if not model:
         raise ValueError("MISTRAL_MODEL_NAME environment variable must be set")
-    mistral_api_key = (
+    raw_key = (
         kwargs.pop("mistral_api_key", None)
         or kwargs.pop("api_key", None)
         or os.getenv("MISTRAL_API_KEY")
     )
+    api_keys = parse_api_keys(raw_key)
 
-    return ChatMistral(
+    client = ChatMistral(
         model=model,
         temperature=temperature,
-        max_retries=0,  # Disable internal retries
-        mistral_api_key=mistral_api_key,
+        max_retries=0,
+        mistral_api_key=api_keys[0] if api_keys else None,
         timeout=360,
         **kwargs,
     )
+    client._api_keys = api_keys
+    if len(api_keys) > 1:
+        print(f"[Mistral] Loaded {len(api_keys)} API keys for rotation")
+    return client
