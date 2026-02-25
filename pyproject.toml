@@ -99,6 +99,15 @@ coqui-tts = [
     "TTS==0.22.0",
 ]
 
+# ---------------------------------------------------------------------------
+# Qwen3-TTS — local GPU TTS with 9 built-in voices + voice cloning (~1.7B)
+# Install: pip install -e ".[qwen-tts]"
+# ---------------------------------------------------------------------------
+qwen-tts = [
+    "qwen-tts>=0.1.1",
+    "soundfile",
+]
+
 # Optional dependencies for alternative rendering methods
 rendering = [
     "pyppeteer",

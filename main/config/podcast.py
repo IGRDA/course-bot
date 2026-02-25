@@ -12,7 +12,7 @@ class PodcastConfig(BaseModel):
         default=600,
         description="Target word count per module podcast"
     )
-    tts_engine: Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts"] = Field(
+    tts_engine: Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts"] = Field(
         default="edge",
         description="TTS engine for podcast generation"
     )

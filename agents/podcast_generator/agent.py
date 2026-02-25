@@ -14,7 +14,7 @@ from .prompts import conversation_prompt
 
 
 # TTS Engine types
-TTSEngineType = Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts"]
+TTSEngineType = Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts"]
 
 # Language mapping from course language to TTS language code
 LANGUAGE_MAP = {
@@ -190,6 +190,7 @@ def generate_module_podcast(
     skip_tts: bool = False,
     tts_engine: TTSEngineType = "edge",
     speaker_map: Optional[dict[str, str]] = None,
+    tts_kwargs: Optional[dict] = None,
 ) -> dict:
     """Generate podcast conversation and optionally synthesize audio.
     
@@ -200,8 +201,11 @@ def generate_module_podcast(
         provider: LLM provider override
         target_words: Target word count
         skip_tts: If True, only generate conversation JSON
-        tts_engine: TTS engine to use ("edge" or "coqui")
-        speaker_map: Custom speaker mapping for voices (e.g., {'host': 'es-ES-AlvaroNeural', 'guest': 'es-ES-XimenaNeural'})
+        tts_engine: TTS engine to use ("edge", "coqui", "qwen_tts", etc.)
+        speaker_map: Custom speaker mapping for voices.
+            For edge: {'host': 'es-ES-AlvaroNeural', 'guest': 'es-ES-XimenaNeural'}
+            For qwen_tts voice_clone: {'host': 'path/to/ref.wav', 'guest': 'path/to/ref.wav'}
+        tts_kwargs: Extra engine-specific keyword arguments (e.g. task_type, device for qwen_tts).
         
     Returns:
         Dict with conversation_path, audio_path (if not skipped), metadata
@@ -221,7 +225,7 @@ def generate_module_podcast(
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Generate conversation
-    engine_names = {"edge": "Edge TTS", "coqui": "Coqui TTS", "elevenlabs": "ElevenLabs", "chatterbox": "Chatterbox TTS", "openai_tts": "OpenAI TTS"}
+    engine_names = {"edge": "Edge TTS", "coqui": "Coqui TTS", "elevenlabs": "ElevenLabs", "chatterbox": "Chatterbox TTS", "openai_tts": "OpenAI TTS", "qwen_tts": "Qwen3-TTS"}
     engine_name = engine_names.get(tts_engine, tts_engine)
     print(f"🎙️ Generating podcast conversation for module {module_idx + 1} ({engine_name})...")
     
@@ -335,6 +339,26 @@ def generate_module_podcast(
                 outro_duration_ms=10000,
                 intro_fade_ms=5000,
                 outro_fade_ms=5000,
+            )
+        elif tts_engine == "qwen_tts":
+            from tools.podcast import generate_podcast_qwen_tts
+            
+            extra = tts_kwargs or {}
+            generate_podcast_qwen_tts(
+                conversation=conversation,
+                output_path=str(audio_path),
+                language=tts_language,
+                speaker_map=speaker_map,
+                title=f"Module {module_idx + 1}: {context['module_title']}",
+                artist="Adinhub",
+                album=context["course_title"],
+                track_number=module_idx + 1,
+                music_path=str(music_path) if music_path.exists() else None,
+                intro_duration_ms=10000,
+                outro_duration_ms=10000,
+                intro_fade_ms=5000,
+                outro_fade_ms=5000,
+                **extra,
             )
         else:
             from tools.podcast import generate_podcast

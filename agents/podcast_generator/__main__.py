@@ -60,7 +60,7 @@ Examples:
     parser.add_argument(
         "--tts-engine", "-t",
         type=str,
-        choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts"],
+        choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts"],
         default="edge",
         help="TTS engine to use for audio synthesis (default: edge)",
     )
@@ -68,6 +68,25 @@ Examples:
         "--skip-tts",
         action="store_true",
         help="Only generate conversation JSON, skip audio synthesis",
+    )
+    parser.add_argument(
+        "--task-type",
+        type=str,
+        choices=["custom_voice", "voice_clone"],
+        default=None,
+        help="Qwen TTS task type (default: custom_voice)",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="PyTorch device for local TTS models (e.g. cuda:0, cpu)",
+    )
+    parser.add_argument(
+        "--speaker-map",
+        type=str,
+        default=None,
+        help='JSON string mapping roles to speakers/paths, e.g. \'{"host": "Ryan", "guest": "Aiden"}\'',
     )
     
     args = parser.parse_args()
@@ -84,6 +103,19 @@ Examples:
         print(f"❌ Error: Module index must be >= 1", file=sys.stderr)
         return 1
     
+    # Build speaker_map from CLI arg
+    speaker_map = None
+    if args.speaker_map:
+        import json
+        speaker_map = json.loads(args.speaker_map)
+
+    # Build engine-specific kwargs
+    tts_kwargs = {}
+    if args.task_type:
+        tts_kwargs["task_type"] = args.task_type
+    if args.device:
+        tts_kwargs["device"] = args.device
+
     try:
         result = generate_module_podcast(
             course_path=str(course_path),
@@ -93,6 +125,8 @@ Examples:
             target_words=args.target_words,
             skip_tts=args.skip_tts,
             tts_engine=args.tts_engine,
+            speaker_map=speaker_map,
+            tts_kwargs=tts_kwargs or None,
         )
         
         # Print summary
