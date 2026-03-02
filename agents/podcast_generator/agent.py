@@ -181,15 +181,34 @@ def generate_conversation(
     return clean_conversation(conversation)
 
 
+import re
+
+_SENTENCE_SPLIT_RE = re.compile(
+    r'(?<=[.!?…¿¡])\s+'
+)
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences using punctuation boundaries.
+
+    Keeps the terminating punctuation attached to each sentence.
+    Falls back to the full text as a single sentence if no split is found.
+    """
+    parts = _SENTENCE_SPLIT_RE.split(text.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
 def build_timed_conversation(
     conversation: list[dict],
     segment_durations_ms: list[int],
     intro_duration_ms: int = 0,
     silence_duration_ms: int = 500,
 ) -> list[dict]:
-    """Build conversation with per-message start/end timestamps in milliseconds.
+    """Build per-sentence timestamps for the entire podcast timeline.
 
-    Timestamps are relative to the full podcast timeline (intro + voice + outro).
+    Each message is split into sentences. The message's known audio duration
+    is distributed across its sentences proportionally by character count,
+    giving approximate but practical sentence-level timestamps.
 
     Args:
         conversation: Original conversation messages
@@ -198,21 +217,39 @@ def build_timed_conversation(
         silence_duration_ms: Silence gap between consecutive messages
 
     Returns:
-        List of message dicts with added start_ms and end_ms fields
+        Flat list of sentence dicts with role, text, start_ms, end_ms
     """
     timed: list[dict] = []
     cursor = intro_duration_ms
 
     for i, msg in enumerate(conversation):
-        start = cursor
-        end = start + segment_durations_ms[i]
-        timed.append({
-            "role": msg["role"],
-            "content": msg["content"],
-            "start_ms": start,
-            "end_ms": end,
-        })
-        cursor = end + silence_duration_ms
+        msg_start = cursor
+        msg_duration = segment_durations_ms[i]
+        sentences = _split_sentences(msg["content"])
+
+        total_chars = sum(len(s) for s in sentences)
+        if total_chars == 0:
+            cursor = msg_start + msg_duration + silence_duration_ms
+            continue
+
+        sent_cursor = msg_start
+        for j, sentence in enumerate(sentences):
+            is_last = j == len(sentences) - 1
+            if is_last:
+                sent_end = msg_start + msg_duration
+            else:
+                proportion = len(sentence) / total_chars
+                sent_end = sent_cursor + round(msg_duration * proportion)
+
+            timed.append({
+                "role": msg["role"],
+                "text": sentence,
+                "start_ms": sent_cursor,
+                "end_ms": sent_end,
+            })
+            sent_cursor = sent_end
+
+        cursor = msg_start + msg_duration + silence_duration_ms
 
     return timed
 
