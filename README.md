@@ -183,10 +183,10 @@ Convert completed course to professional PDF book:
 
 ```bash
 # Basic usage
-python3 -m tools.pdf_book output/MyCourseName/course.json
+python3 -m tools.json2book output/MyCourseName/course.json
 
 # With options
-python3 -m tools.pdf_book output/MyCourseName/course.json \
+python3 -m tools.json2book output/MyCourseName/course.json \
     --template academic \
     --output-dir ./my_book \
     --no-images
@@ -297,7 +297,7 @@ course-generator-agent/
 │   ├── imagesearch/           # Bing, DDG, Freepik, Google
 │   ├── booksearch/            # Open Library API
 │   ├── pdf2md/                # PDF extraction (Docling)
-│   ├── pdf_book/              # LaTeX PDF generation
+│   ├── json2book/             # LaTeX PDF generation
 │   └── podcast/               # TTS engines (Edge, Coqui)
 ├── evaluators/                # Quality assessment
 └── evaluation/                # Evaluation framework

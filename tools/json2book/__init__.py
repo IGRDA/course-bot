@@ -1,5 +1,5 @@
 """
-PDF Book Generator Tool.
+JSON-to-Book Generator Tool.
 
 Converts course.json to professional academic PDF books via LaTeX.
 """

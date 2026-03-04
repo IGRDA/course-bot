@@ -8,6 +8,7 @@ of transitive dependencies at module-load time.
 
 import os
 import platform
+import tempfile
 from pathlib import Path
 import logging
 
@@ -53,6 +54,7 @@ def convert_pdf_to_markdown(
     language: str = "es",
     images_scale: float = 2.0,
     extract_tables: bool = True,
+    extract_images: bool = True,
     table_mode: str = "accurate",
     force_ocr: bool = True,
     table_text_handling: str = "hybrid",
@@ -77,6 +79,7 @@ def convert_pdf_to_markdown(
                   This helps OCR engines better recognize language-specific characters.
         images_scale: DPI scale for images (default 2.0 = 2x quality, higher = better quality but slower)
         extract_tables: Whether to extract tables with structure (default True)
+        extract_images: Whether to extract images from the PDF and embed them in markdown (default True)
         table_mode: Table extraction mode - 'fast' or 'accurate' (default 'accurate')
         force_ocr: If True (default), forces full-page OCR to bypass potentially corrupted
                    PDF text layers. Set to False only if you trust the PDF's embedded text.
@@ -135,19 +138,15 @@ def convert_pdf_to_markdown(
     
     # Image quality settings
     pipeline_options.images_scale = images_scale
-    pipeline_options.generate_picture_images = False  # No picture extraction
-    pipeline_options.generate_table_images = False    # Tables as text, not images
+    pipeline_options.generate_picture_images = extract_images
+    pipeline_options.generate_table_images = False
     
     # Table extraction settings based on table_text_handling strategy
     if table_text_handling == "ocr":
-        # Disable table structure to let OCR handle all text (including table content)
-        # This produces correct text but loses table markdown formatting
         pipeline_options.do_table_structure = False
         logger.info("Table structure disabled - OCR will handle all text including tables")
     elif extract_tables:
         pipeline_options.do_table_structure = True
-        # TableFormerMode.ACCURATE is slower but more accurate
-        # TableFormerMode.FAST is faster but may miss complex tables
         pipeline_options.table_structure_options.mode = (
             TableFormerMode.ACCURATE if table_mode == "accurate" else TableFormerMode.FAST
         )
@@ -161,36 +160,120 @@ def convert_pdf_to_markdown(
     if ocr_options is not None:
         pipeline_options.ocr_options = ocr_options
     
-    # Step 2: Convert document with optimized settings
+    # Step 2: Convert document (with automatic repair on failure)
     converter = DocumentConverter(
         format_options={
             InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
         }
     )
     
+    import time
+    repaired_path = None
     try:
-        import time
         start_time = time.time()
         result = converter.convert(pdf_path)
         elapsed = time.time() - start_time
         logger.info(f"Conversion completed in {elapsed:.2f} seconds")
-    except Exception as e:
-        logger.error(f"Error converting PDF: {e}")
-        raise
+    except Exception as first_error:
+        logger.warning(f"Initial conversion failed: {first_error}")
+        logger.info("Attempting PDF repair with PyMuPDF and retrying...")
+        try:
+            repaired_path = _repair_pdf(pdf_path, output_base)
+            start_time = time.time()
+            result = converter.convert(repaired_path)
+            elapsed = time.time() - start_time
+            logger.info(f"Conversion succeeded after repair in {elapsed:.2f} seconds")
+        except Exception as second_error:
+            logger.error(f"Conversion failed even after PDF repair: {second_error}")
+            raise RuntimeError(
+                f"PDF conversion failed.\n"
+                f"  Original error: {first_error}\n"
+                f"  After repair: {second_error}"
+            ) from second_error
 
-    # Step 3: Get markdown content
-    markdown_content = result.document.export_to_markdown()
-    logger.info(f"✓ Markdown extracted ({len(markdown_content)} characters)")
-    
-    # Always save to disk for caching
+    # Step 3: Export markdown (with or without images)
     markdown_path = output_base / f"{doc_name}.md"
-    markdown_path.write_text(markdown_content, encoding="utf-8")
-    logger.info(f"✓ Markdown cached to: {markdown_path}")
-    
+
+    if extract_images:
+        from docling_core.types.doc import ImageRefMode
+        result.document.save_as_markdown(
+            markdown_path,
+            image_mode=ImageRefMode.REFERENCED,
+        )
+        logger.info(f"✓ Markdown with referenced images saved to: {markdown_path}")
+    else:
+        markdown_content = result.document.export_to_markdown()
+        markdown_path.write_text(markdown_content, encoding="utf-8")
+        logger.info(f"✓ Markdown saved to: {markdown_path}")
+
+    markdown_content = markdown_path.read_text(encoding="utf-8")
+    logger.info(f"✓ Markdown: {len(markdown_content)} characters")
+
+    # Clean up temporary repaired PDF
+    if repaired_path and repaired_path.exists():
+        try:
+            repaired_path.unlink()
+            logger.debug(f"Cleaned up repaired PDF: {repaired_path}")
+        except OSError:
+            pass
+
     if return_string:
         return markdown_content
     else:
         return str(markdown_path)
+
+
+def _repair_pdf(pdf_path: Path, output_dir: Path) -> Path:
+    """Re-save a PDF via PyMuPDF to normalise page trees and metadata.
+
+    Some PDFs (e.g. those produced by XeLaTeX) store /MediaBox only in the
+    parent Pages node.  Docling's parser expects it on every page and fails
+    with ``could not find the page-dimensions``.  Re-saving through PyMuPDF
+    forces explicit page geometry on every page object, fixing this class of
+    issues.
+
+    Args:
+        pdf_path: Path to the original PDF.
+        output_dir: Directory to write the repaired file.
+
+    Returns:
+        Path to the repaired PDF.
+
+    Raises:
+        ImportError: If PyMuPDF is not installed.
+        RuntimeError: If the repair itself fails.
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise ImportError(
+            "PyMuPDF (fitz) is required for PDF repair but is not installed. "
+            "Install it with: pip install pymupdf"
+        )
+
+    repaired_path = output_dir / f"{pdf_path.stem}_repaired.pdf"
+    logger.info(f"Repairing PDF: {pdf_path} → {repaired_path}")
+
+    try:
+        src = fitz.open(str(pdf_path))
+        dst = fitz.open()
+
+        for page in src:
+            # insert_pdf copies pages with fully resolved attributes
+            dst.insert_pdf(src, from_page=page.number, to_page=page.number)
+
+        dst.save(str(repaired_path), garbage=4, deflate=True)
+        dst.close()
+        src.close()
+
+        logger.info(
+            f"PDF repaired successfully "
+            f"({repaired_path.stat().st_size / 1024:.0f} KB)"
+        )
+        return repaired_path
+
+    except Exception as e:
+        raise RuntimeError(f"PDF repair failed: {e}") from e
 
 
 def _get_ocr_options(ocr_engine: str, language: str = "es", force_ocr: bool = True):
@@ -268,16 +351,232 @@ def get_recommended_ocr_engine() -> str:
         return "easyocr"
 
 
+def normalize_heading_levels(text: str) -> str:
+    """Normalize markdown heading levels based on content patterns.
+
+    Corrects heading levels for chapter files where PDF-to-markdown conversion
+    (e.g. Docling) flattened all headings to the same level (typically ``##``).
+    Uses numbered prefixes and known patterns to infer the correct hierarchy:
+
+    - ``## Módulo N`` / ``Module N`` / ``Chapter N``  →  ``#``  (module title)
+    - ``## N.M Title`` (two-level number)              →  ``##`` (submodule)
+    - ``## N.M.K Title`` (three-level number)           →  ``###`` (section)
+    - Unnumbered ``##`` headings are left at level 2 by default.
+
+    This function is idempotent: running it on already-normalised text is safe.
+
+    Args:
+        text: Markdown text (typically a single chapter/module file).
+
+    Returns:
+        Markdown text with corrected heading levels.
+    """
+    import re
+
+    _module_header = re.compile(
+        r"^(#{1,3})\s+"
+        r"(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)"
+        r"\s+\d+",
+        re.IGNORECASE,
+    )
+    _section_3lvl = re.compile(r"^(#{1,3})\s+(\d+\.\d+\.\d+)\b")
+    _submodule_2lvl = re.compile(r"^(#{1,3})\s+(\d+\.\d+)\b")
+
+    lines = text.split("\n")
+    result: list[str] = []
+
+    for line in lines:
+        if _module_header.match(line):
+            result.append(re.sub(r"^#{1,3}", "#", line))
+            continue
+
+        if _section_3lvl.match(line):
+            result.append(re.sub(r"^#{1,3}", "###", line))
+            continue
+
+        if _submodule_2lvl.match(line):
+            result.append(re.sub(r"^#{1,3}", "##", line))
+            continue
+
+        result.append(line)
+
+    return "\n".join(result)
+
+
+def split_markdown_by_chapters(
+    markdown_path: str | Path,
+    output_dir: str | Path | None = None,
+    chapter_pattern: str | None = None,
+) -> list[Path]:
+    """
+    Split a single markdown file into per-chapter/module files.
+
+    Detects chapter boundaries using headers that match patterns like
+    ``# Módulo N``, ``## Module N``, ``## Chapter N``, ``## Capítulo N``,
+    or standalone ``## N.`` / ``## N `` numbering.  Content before the
+    first chapter goes into ``00_frontmatter.md``; the references section
+    (if present) goes into a separate ``references.md``.
+
+    Args:
+        markdown_path: Path to the source markdown file.
+        output_dir: Directory to write chapter files into.  Defaults to a
+                    ``chapters/`` subdirectory next to the source file.
+        chapter_pattern: Regex that matches chapter-start lines.  The
+                        default handles many common patterns
+                        (case-insensitive, H1 or H2).
+
+    Returns:
+        List of paths to the created chapter files.
+    """
+    import re
+    import unicodedata
+
+    markdown_path = Path(markdown_path).resolve()
+    if not markdown_path.exists():
+        raise FileNotFoundError(f"Markdown file not found: {markdown_path}")
+
+    if output_dir is not None:
+        out = Path(output_dir).resolve()
+    else:
+        out = markdown_path.parent / "chapters"
+    out.mkdir(parents=True, exist_ok=True)
+
+    # Default pattern: H1/H2 with Módulo|Module|Chapter|Capítulo + number
+    if chapter_pattern is None:
+        chapter_pattern = (
+            r"^#{1,2}\s+"
+            r"(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)"
+            r"\s+\d+"
+        )
+
+    content = markdown_path.read_text(encoding="utf-8")
+    lines = content.split("\n")
+
+    # Locate chapter boundaries and references
+    boundaries: list[tuple[int, str]] = []
+    ref_pattern = r"^#{1,2}\s+[Rr]eferencias?"
+    for idx, line in enumerate(lines):
+        if re.match(chapter_pattern, line, re.IGNORECASE):
+            boundaries.append((idx, line.strip()))
+        elif re.match(ref_pattern, line, re.IGNORECASE):
+            boundaries.append((idx, "Referencias"))
+
+    if not boundaries:
+        logger.warning(
+            "No chapter boundaries found with default pattern. "
+            "Trying fallback: any H1 header as chapter boundary."
+        )
+        for idx, line in enumerate(lines):
+            if re.match(r"^#\s+\S", line) and not re.match(r"^##", line):
+                boundaries.append((idx, line.strip()))
+
+    if not boundaries:
+        logger.warning("No chapter boundaries found — writing entire file as single chapter")
+        dest = out / "01_full.md"
+        dest.write_text(content, encoding="utf-8")
+        return [dest]
+
+    # Collect artifacts dir (images) so we can fix relative paths
+    artifacts_dir = markdown_path.parent / f"{markdown_path.stem}_artifacts"
+
+    created: list[Path] = []
+
+    def _fix_image_paths(text: str, target_file: Path) -> str:
+        """Rewrite absolute/relative image paths so they work from target_file."""
+        if not artifacts_dir.exists():
+            return text
+
+        def _replacer(m: re.Match) -> str:
+            alt = m.group(1)
+            img_path = Path(m.group(2))
+            try:
+                rel = os.path.relpath(img_path, target_file.parent)
+            except ValueError:
+                rel = str(img_path)
+            return f"![{alt}]({rel})"
+
+        return re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", _replacer, text)
+
+    def _slugify(text: str, max_len: int = 50) -> str:
+        # Strip numbered prefixes like "1.1", "2.3.1" before slugifying
+        text = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", text)
+        text = unicodedata.normalize("NFKD", text)
+        text = text.encode("ascii", "ignore").decode("ascii").lower()
+        text = re.sub(r"[^\w\s-]", "", text).strip()
+        text = re.sub(r"[\s]+", "_", text)
+        return text[:max_len].rstrip("_")
+
+    def _write_chunk(filename: str, chunk_lines: list[str], normalize: bool = False) -> Path:
+        dest = out / filename
+        text = "\n".join(chunk_lines)
+        if normalize:
+            text = normalize_heading_levels(text)
+        text = _fix_image_paths(text, dest)
+        dest.write_text(text, encoding="utf-8")
+        logger.info(f"  → {dest.name}  ({len(chunk_lines)} lines)")
+        return dest
+
+    # Frontmatter (everything before first chapter)
+    first_chapter_idx = boundaries[0][0]
+    if first_chapter_idx > 0:
+        frontmatter = lines[:first_chapter_idx]
+        if any(l.strip() for l in frontmatter):
+            created.append(_write_chunk("00_frontmatter.md", frontmatter))
+
+    # Chapters
+    for i, (start, title) in enumerate(boundaries):
+        end = boundaries[i + 1][0] if i + 1 < len(boundaries) else len(lines)
+        chunk = lines[start:end]
+
+        is_references = "referencia" in title.lower()
+        if is_references:
+            fname = "references.md"
+        else:
+            num_match = re.search(r"\d+", title)
+            num = num_match.group() if num_match else str(i + 1)
+            raw_title = re.sub(r"^#+\s*", "", title)
+            raw_title = re.sub(
+                r"^(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)\s+\d+\s*[:\-–—.]?\s*",
+                "", raw_title, flags=re.IGNORECASE,
+            )
+            raw_title = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", raw_title)
+            slug = _slugify(raw_title) if raw_title.strip() else ""
+            fname = f"{int(num):02d}_{slug}.md" if slug else f"{int(num):02d}_module.md"
+
+        created.append(_write_chunk(fname, chunk, normalize=not is_references))
+
+    logger.info(f"Split into {len(created)} files in {out}")
+    return created
+
+
 if __name__ == "__main__":
-    
-    print("\n=== Spanish PDF conversion with optimized settings ===")
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Convert PDF to Markdown (optionally split by chapters)")
+    parser.add_argument("pdf_path", help="Path to the PDF file")
+    parser.add_argument("--output-dir", "-o", default=None, help="Output directory")
+    parser.add_argument("--language", "-l", default="es", help="OCR language (default: es)")
+    parser.add_argument("--split", action="store_true", help="Split output into per-chapter files")
+    parser.add_argument("--no-ocr", action="store_true", help="Disable force OCR")
+    args = parser.parse_args()
+
+    print(f"\n=== Converting {args.pdf_path} ===")
     result_path = convert_pdf_to_markdown(
-        "example_pdfs/coaching_y_orientacion.pdf",
-        ocr_engine="auto",        # Auto-detect best OCR for platform
-        language="es",            # Spanish language
-        force_ocr=True,           # Bypass corrupted PDF text layer
-        images_scale=2.0,         # Good quality
-        table_mode="accurate",    # Accurate table extraction
-        table_text_handling="hybrid"  # Balance of tables and correct text
+        args.pdf_path,
+        ocr_engine="auto",
+        language=args.language,
+        force_ocr=not args.no_ocr,
+        images_scale=2.0,
+        table_mode="accurate",
+        table_text_handling="hybrid",
+        output_dir=args.output_dir,
     )
     print(f"Saved markdown to: {result_path}")
+
+    if args.split:
+        print("\n=== Splitting into chapters ===")
+        chapter_dir = Path(result_path).parent / "chapters"
+        files = split_markdown_by_chapters(result_path, output_dir=chapter_dir)
+        print(f"Created {len(files)} chapter files:")
+        for f in files:
+            print(f"  {f}")

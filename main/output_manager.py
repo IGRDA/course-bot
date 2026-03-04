@@ -33,7 +33,10 @@ class OutputManager:
         "bibliography": 8,
         "people": 9,
         "mindmap": 10,
-        "pdf_book": 11,
+        "json2book": 11,
+        "parse_markdown": 12,
+        "inject_images": 13,
+        "restructure": 14,
     }
     
     def __init__(self, title: str, output_dir: str = "output"):

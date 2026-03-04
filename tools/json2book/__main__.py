@@ -2,7 +2,7 @@
 CLI entry point for PDF book generation.
 
 Usage:
-    python -m tools.pdf_book path/to/course.json [--template academic] [--output-dir path/to/output]
+    python -m tools.json2book path/to/course.json [--template academic] [--output-dir path/to/output]
 """
 
 import argparse
@@ -20,19 +20,19 @@ def main():
         epilog="""
 Examples:
     # Generate PDF in default location (course_dir/book/)
-    python -m tools.pdf_book output/MyCourseName/course.json
+    python -m tools.json2book output/MyCourseName/course.json
     
     # Generate PDF with specific output directory
-    python -m tools.pdf_book output/MyCourseName/course.json --output-dir ./my_book
+    python -m tools.json2book output/MyCourseName/course.json --output-dir ./my_book
     
     # Use a different template
-    python -m tools.pdf_book output/MyCourseName/course.json --template academic
+    python -m tools.json2book output/MyCourseName/course.json --template academic
     
     # Skip image downloads
-    python -m tools.pdf_book output/MyCourseName/course.json --no-images
+    python -m tools.json2book output/MyCourseName/course.json --no-images
     
     # Keep intermediate LaTeX files
-    python -m tools.pdf_book output/MyCourseName/course.json --no-cleanup
+    python -m tools.json2book output/MyCourseName/course.json --no-cleanup
 """
     )
     
@@ -105,4 +105,3 @@ Examples:
 
 if __name__ == '__main__':
     main()
-

@@ -45,10 +45,63 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================
-# Deduplication Utilities
+# JSON Parsing Utilities
 # ============================================================
 
 import re
+
+
+def _parse_json_response(raw: str, context: str = "LLM response") -> list:
+    """Robustly parse a JSON array from an LLM response.
+
+    Handles markdown fences, trailing commas, and other common LLM quirks.
+    Returns an empty list on failure instead of raising.
+    """
+    text = raw.strip()
+
+    # Strip markdown code fences
+    if "```" in text:
+        parts = text.split("```")
+        for part in parts:
+            candidate = part.strip()
+            if candidate.startswith("json"):
+                candidate = candidate[4:].strip()
+            if candidate.startswith("[") or candidate.startswith("{"):
+                text = candidate
+                break
+
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Fix trailing commas before ] or }
+    fixed = re.sub(r",\s*([}\]])", r"\1", text)
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to extract the first JSON array from the text
+    match = re.search(r"\[[\s\S]*\]", text)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            fixed_match = re.sub(r",\s*([}\]])", r"\1", match.group())
+            try:
+                return json.loads(fixed_match)
+            except json.JSONDecodeError:
+                pass
+
+    logger.error("Failed to parse %s as JSON (length=%d)", context, len(raw))
+    return []
+
+
+# ============================================================
+# Deduplication Utilities
+# ============================================================
 
 def _normalize_title_for_dedup(title: str) -> str:
     """
@@ -1254,19 +1307,7 @@ def _search_books_for_module(
     })
     
     # Parse LLM response
-    try:
-        clean_response = raw_suggestions.strip()
-        if clean_response.startswith("```"):
-            clean_response = clean_response.split("```")[1]
-            if clean_response.startswith("json"):
-                clean_response = clean_response[4:]
-        if clean_response.endswith("```"):
-            clean_response = clean_response.rsplit("```", 1)[0]
-        
-        suggestions = json.loads(clean_response.strip())
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM book suggestions: {e}")
-        suggestions = []
+    suggestions = _parse_json_response(raw_suggestions, context="book suggestions")
     
     # Validate books and build references
     validated_books: list[BookReference] = []

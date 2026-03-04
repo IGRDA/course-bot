@@ -37,12 +37,17 @@ def generate_bibliography_node(state: CourseState, config: Optional[RunnableConf
     
     from agents.bibliography_generator.agent import generate_course_bibliography
 
-    bibliography = generate_course_bibliography(state)
-    state.bibliography = bibliography
+    try:
+        bibliography = generate_course_bibliography(state)
+        state.bibliography = bibliography
+
+        modules_with_bib = sum(1 for m in state.modules if m.bibliography is not None)
+        print(f"   Bibliography: {modules_with_bib}/{len(state.modules)} modules enriched")
+        if modules_with_bib == 0:
+            print("   WARNING: No modules received bibliography data")
+    except Exception as e:
+        print(f"   ERROR in bibliography generation: {e}")
     
-    print("Bibliography generation completed!")
-    
-    # Save step snapshot if OutputManager is available
     output_mgr = get_output_manager(config)
     if output_mgr:
         output_mgr.save_step("bibliography", state)
@@ -72,12 +77,17 @@ def generate_videos_node(state: CourseState, config: Optional[RunnableConfig] = 
     
     from agents.video_search.agent import generate_course_videos
 
-    course_videos = generate_course_videos(state)
-    state.videos = course_videos
+    try:
+        course_videos = generate_course_videos(state)
+        state.videos = course_videos
+
+        modules_with_video = sum(1 for m in state.modules if m.video is not None)
+        print(f"   Videos: {modules_with_video}/{len(state.modules)} modules enriched")
+        if modules_with_video == 0:
+            print("   WARNING: No modules received video data")
+    except Exception as e:
+        print(f"   ERROR in video generation: {e}")
     
-    print("Video generation completed!")
-    
-    # Save step snapshot if OutputManager is available
     output_mgr = get_output_manager(config)
     if output_mgr:
         output_mgr.save_step("videos", state)
@@ -107,11 +117,16 @@ def generate_people_node(state: CourseState, config: Optional[RunnableConfig] = 
     
     from agents.people_search.agent import generate_course_people
 
-    state = generate_course_people(state)
+    try:
+        state = generate_course_people(state)
+
+        modules_with_people = sum(1 for m in state.modules if m.relevant_people)
+        print(f"   People: {modules_with_people}/{len(state.modules)} modules enriched")
+        if modules_with_people == 0:
+            print("   WARNING: No modules received people data")
+    except Exception as e:
+        print(f"   ERROR in people generation: {e}")
     
-    print("People generation completed!")
-    
-    # Save step snapshot if OutputManager is available
     output_mgr = get_output_manager(config)
     if output_mgr:
         output_mgr.save_step("people", state)
@@ -141,11 +156,16 @@ def generate_mindmap_node(state: CourseState, config: Optional[RunnableConfig] =
     
     from agents.mind_map_generator.agent import generate_course_mindmaps
 
-    state = generate_course_mindmaps(state)
+    try:
+        state = generate_course_mindmaps(state)
+
+        modules_with_mindmap = sum(1 for m in state.modules if m.mindmap is not None)
+        print(f"   Mindmaps: {modules_with_mindmap}/{len(state.modules)} modules enriched")
+        if modules_with_mindmap == 0:
+            print("   WARNING: No modules received mindmap data")
+    except Exception as e:
+        print(f"   ERROR in mindmap generation: {e}")
     
-    print("Mind map generation completed!")
-    
-    # Save step snapshot if OutputManager is available
     output_mgr = get_output_manager(config)
     if output_mgr:
         output_mgr.save_step("mindmap", state)
@@ -370,7 +390,7 @@ def generate_pdf_book_node(state: CourseState, config: Optional[RunnableConfig] 
         print(f"   💾 Bibliography saved: bibliography.json")
     
     # Generate PDF book
-    from tools.pdf_book import generate_pdf_book
+    from tools.json2book import generate_pdf_book
     
     try:
         pdf_path = generate_pdf_book(

@@ -212,7 +212,7 @@ def _generate_content(course_data: dict, images_dir: Path = None) -> str:
     modules = course_data.get('modules', [])
     
     # Get research data for learning objectives (if available)
-    research = course_data.get('research', {})
+    research = course_data.get('research') or {}
     learning_objectives = research.get('learning_objectives', [])
     
     for idx, module in enumerate(modules):
@@ -345,6 +345,27 @@ def _process_html_elements(elements: list, lines: list, images_dir: Path = None)
                                 lines.append(f'\\caption{{{escape_latex_simple(caption)}}}')
                             lines.append(r'\end{figure}')
                             lines.append('')
+                elif url and not url.startswith(('http://', 'https://')):
+                    # Local file path (from content digitalizer)
+                    local_path = Path(url)
+                    if local_path.exists() and _is_valid_latex_image(local_path):
+                        # Copy to images_dir so LaTeX can find it
+                        if images_dir:
+                            import shutil
+                            dest = images_dir / local_path.name
+                            if not dest.exists():
+                                shutil.copy2(local_path, dest)
+                            filename = local_path.name
+                        else:
+                            filename = str(local_path)
+                        lines.append('')
+                        lines.append(r'\begin{figure}[H]')
+                        lines.append(r'\centering')
+                        lines.append(f'\\includegraphics[width=0.8\\textwidth,keepaspectratio]{{{filename}}}')
+                        if caption:
+                            lines.append(f'\\caption{{{escape_latex_simple(caption)}}}')
+                        lines.append(r'\end{figure}')
+                        lines.append('')
         
         # Handle paragraphs with text content
         elif element_type == 'p' and 'content' in element:

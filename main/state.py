@@ -294,6 +294,15 @@ class Section(BaseModel):
         default=None,
         description="Activities section with quiz and application activities"
     )
+    
+    source_images: list[dict] | None = Field(
+        default=None,
+        description=(
+            "Local image references extracted from markdown, with positional context. "
+            "Each entry: {'alt': str, 'path': str, 'preceding_text': str} "
+            "where preceding_text is a snippet of text before the image for inline placement."
+        ),
+    )
 
 # ---- Submodule level ----
 class Submodule(BaseModel):

@@ -240,6 +240,10 @@ def _escape_special_chars(text: str) -> str:
     for char, replacement in UNICODE_TO_LATEX.items():
         text = text.replace(char, replacement)
     
+    # Break up >> and << which are active chars in babel-spanish (quoting shorthands)
+    text = text.replace('>>', '>{}>') 
+    text = text.replace('<<', '<{}<')
+    
     return text
 
 
