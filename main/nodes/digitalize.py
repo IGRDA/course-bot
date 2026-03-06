@@ -220,22 +220,26 @@ def inject_local_images_node(state: CourseState, config: Optional[RunnableConfig
 
                 assigned: set[int] = set()
                 for img_info in source_images:
-                    src_path = Path(img_info["path"])
+                    img_path_str = img_info["path"]
                     alt = img_info.get("alt", "")
                     preceding = img_info.get("preceding_text", "")
+                    is_url = img_path_str.startswith(("http://", "https://"))
 
-                    if not src_path.exists():
-                        logger.warning("Local image not found, skipping: %s", src_path)
-                        skipped += 1
-                        continue
-
-                    # Always copy to current run's images folder
-                    if images_dir:
-                        dest_path = images_dir / src_path.name
-                        if not dest_path.exists():
-                            shutil.copy2(src_path, dest_path)
+                    if is_url:
+                        dest_path_str = img_path_str
                     else:
-                        dest_path = src_path
+                        src_path = Path(img_path_str)
+                        if not src_path.exists():
+                            logger.warning("Local image not found, skipping: %s", src_path)
+                            skipped += 1
+                            continue
+                        if images_dir:
+                            dest_path = images_dir / src_path.name
+                            if not dest_path.exists():
+                                shutil.copy2(src_path, dest_path)
+                        else:
+                            dest_path = src_path
+                        dest_path_str = str(dest_path)
 
                     query = alt
                     if not query or query.lower() in ("image", "img", "figure", "imagen", "figura"):
@@ -246,7 +250,7 @@ def inject_local_images_node(state: CourseState, config: Optional[RunnableConfig
                     image_data = {
                         "type": "img",
                         "query": query,
-                        "content": str(dest_path),
+                        "content": dest_path_str,
                     }
 
                     # Find best matching block by text overlap

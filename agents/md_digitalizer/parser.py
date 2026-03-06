@@ -163,10 +163,18 @@ def _resolve_image_paths(images: list[dict], md_file: Path, source_folder: Path)
     """Resolve relative image paths to absolute paths based on the markdown file location.
 
     Also filters out text-only OCR fragments using dimension heuristics.
+    HTTP/HTTPS URLs are passed through directly without local resolution.
     """
     resolved = []
     for img in images:
         raw_path = img["path"]
+        if raw_path.startswith(("http://", "https://")):
+            resolved.append({
+                "alt": img["alt"],
+                "path": raw_path,
+                "preceding_text": img.get("preceding_text", ""),
+            })
+            continue
         candidate = (md_file.parent / raw_path).resolve()
         if not candidate.exists():
             candidate = (source_folder / raw_path).resolve()
