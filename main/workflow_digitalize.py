@@ -223,11 +223,11 @@ Examples:
         generate_pdf=args.pdf,
         # Activities
         generate_activities=not args.no_activities,
-        activities_concurrency=60,
+        activities_concurrency=40,
         activity_selection_mode="deterministic",
         sections_per_activity=1,
         # HTML formatting
-        html_concurrency=30,
+        html_concurrency=20,
         select_html="LLM",
         html_formats="paragraphs|accordion|tabs|carousel|flip|timeline|conversation",
         include_quotes_in_html=True,

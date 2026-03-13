@@ -101,11 +101,11 @@ if __name__ == "__main__":
         research_max_queries=7,  # Number of search queries to generate
         research_max_results_per_query=5,  # Results per search query
         # Activities configuration
-        activities_concurrency=60,  # Number of concurrent activity generations
+        activities_concurrency=40,  # Number of concurrent activity generations
         activity_selection_mode="deterministic",  # "random" or "deterministic"
         sections_per_activity=1,  # Generate activities every N sections within each submodule (1 = every section)
         # HTML configuration
-        html_concurrency=30,  # Number of concurrent HTML generations
+        html_concurrency=20,  # Number of concurrent HTML generations
         select_html="LLM",  # "LLM" | "random"
         html_formats="paragraphs|accordion|tabs|carousel|flip|timeline|conversation",  # Pipe-separated list
         html_random_seed=42,  # Seed for deterministic random selection
