@@ -12,13 +12,7 @@ Fetch a website (root + child pages), extract images, produce markdown chapter f
 1. **WebFetch** the root URL. Extract all same-domain internal links.
 2. Filter out anchors, static assets, auth pages, social links, duplicates, external domains.
 3. Fetch child links (max 20 pages) via WebFetch. Prioritize navigation links and content-heavy pages. Skip 404s, auth-gated, or <50-word pages.
-4. **Extract images** from all fetched URLs:
-
-```bash
-python -m tools.web_image_extractor "URL1" "URL2" ...
-```
-
-Returns JSON with `{src, alt, context_heading, context_text}` per image. WebFetch strips images, so this step is required.
+4. **Extract images** from all fetched URLs. WebFetch strips images, so for each page manually download/inspect the raw HTML to find `<img>` tags with content-relevant images (skip icons, tracking pixels, SVGs). Collect `src`, `alt`, and the surrounding heading/paragraph context for each image.
 
 ## Step 2: Build Markdown Chapters
 

@@ -35,7 +35,6 @@ The parser (`agents/md_digitalizer/parser.py`) extracts `![alt](url)` references
 
 ## Key Files
 
-- Image extractor: `tools/web_image_extractor.py`
 - Parser: `agents/md_digitalizer/parser.py`
 - Restructurer: `agents/md_digitalizer/restructurer.py`
 - Workflow: `main/workflow_digitalize.py`
