@@ -4,30 +4,31 @@ on:
   pull_request:
     branches:
       - main
-      - master
 
 jobs:
-  test:
+  engine-test:
+    name: Engine — generate test course
     runs-on: ubuntu-latest
     environment: course-generator-agent
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Set up Python 3.11
+
+      - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
-      
-      - name: Install dependencies
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install engine
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          pip install -e ./engine
           playwright install chromium
-      
+
       - name: Run workflow
+        working-directory: engine
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL_NAME: ${{ vars.GEMINI_MODEL_NAME }}
@@ -45,5 +46,28 @@ jobs:
           LANGSMITH_PROJECT: ${{ vars.LANGSMITH_PROJECT }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
-          python3 -m main.workflow --total-pages 1
+          python3 -m workflows.workflow --total-pages 1
 
+  bot-test:
+    name: Bot — unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install bot with test deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "./bot[test]"
+
+      - name: Run tests
+        working-directory: bot
+        run: |
+          python -m pytest tests/ -v

@@ -1,0 +1,14 @@
+.git
+.github
+terraform
+scripts
+LICENSE
+.DS_Store
+__pycache__
+*.pyc
+*.egg-info
+engine/output
+engine/env.secrets
+env.secrets
+.env
+*.wav

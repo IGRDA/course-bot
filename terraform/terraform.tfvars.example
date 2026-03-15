@@ -1,0 +1,14 @@
+# Per-environment variable files live in env/ and are committed to git.
+# See env/dev.tfvars, env/staging.tfvars, env/prod.tfvars.
+#
+# Usage:
+#   terraform init -backend-config=backends/dev.conf
+#   terraform apply -var-file=env/dev.tfvars
+#
+# You can also copy this file to terraform.tfvars for quick local iteration
+# (terraform.tfvars is gitignored and takes precedence).
+
+project_id = "course-bot-490222"
+environment = "dev"
+region      = "europe-west1"
+image       = "gcr.io/course-bot-490222/course-bot:latest"
