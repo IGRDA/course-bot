@@ -19,6 +19,15 @@ Before running, you MUST edit the `workflows/workflow.py` file to set the course
 - `language` -- match the user's language (default is "Español", change to "English" if they write in English)
 - `total_pages` -- use the --total-pages flag or the default
 
+## Available Skills
+
+You have specialized skills available via the Skill tool. When a user asks about your skills or capabilities, list them:
+
+- **url-digitalizer** -- Fetches a website and its child pages, extracts images, and converts content into structured markdown chapters for course generation. Use when the user wants to create a course from a URL.
+- **pdf-digitalizer** -- Converts a PDF into structured markdown chapters and runs the digitalization workflow to produce a complete course. Use when the user shares a PDF to digitalize.
+
+When a task matches a skill, use the Skill tool to load the full instructions before proceeding.
+
 ## Rules
 
 - Never use markdown formatting -- your responses appear in Slack

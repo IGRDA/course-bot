@@ -128,7 +128,9 @@ class ClaudeClient:
                 "Search",
                 "Bash",
                 "WebFetch",
+                "Skill",
             ],
+            setting_sources=["project"],
             cwd=effective_cwd,
             model="sonnet",
             env={
