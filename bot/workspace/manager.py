@@ -1,7 +1,16 @@
-"""Workspace manager — git clone, branch creation, sync, and finalize.
+"""Workspace manager — image-seed and git-based session continuity.
 
 Each Slack thread gets a deterministic workspace directory and git branch
 derived from the workspace ID (channel:thread_ts).
+
+**Image-Seed pattern (new threads):** The workspace is seeded from the
+Docker image's baked-in code (``/app`` by default).  A git repo is
+initialised in-place and the remote is attached so that ``finalize()``
+can push Claude's changes as a session branch for MR capability.
+
+**Clone path (existing threads):** When a session branch already exists
+on the remote (from a previous Cloud Run Job execution), the repo is
+cloned and the session branch is checked out to preserve continuity.
 
 With Cloud Run Jobs, each execution gets a fresh container.  The
 ``finalize()`` method commits any uncommitted changes and pushes the
@@ -14,6 +23,7 @@ import asyncio
 import hashlib
 import logging
 import os
+import shutil
 
 from bot.conversation.types import WorkspaceInfo
 
@@ -23,9 +33,15 @@ logger = logging.getLogger(__name__)
 class WorkspaceManager:
     """Manages per-session git workspaces.
 
-    - Deterministic hash: sha1(workspace_id)[:8]
-    - Clone on first use, fetch + checkout existing session branch if available
-    - finalize() commits + pushes after processing
+    Two creation strategies:
+
+    1. **Image-seed** (new thread) — copies the Docker image code into
+       ``/tmp/session-<hash>``, runs ``git init``, attaches the remote,
+       and optionally grafts onto ``origin/main`` for clean MR diffs.
+    2. **Clone-resume** (existing thread) — traditional ``git clone`` +
+       checkout of the session branch pushed by a previous execution.
+
+    ``finalize()`` commits + pushes after processing (unchanged).
     """
 
     def __init__(
@@ -33,17 +49,20 @@ class WorkspaceManager:
         repo_url: str,
         base_dir: str = "/tmp",
         default_branch: str = "main",
+        image_source_dir: str = "/app",
     ) -> None:
         self._repo_url = repo_url
         self._base_dir = base_dir
         self._default_branch = default_branch
+        self._image_source_dir = image_source_dir
 
     async def setup(self, workspace_id: str) -> WorkspaceInfo:
         """Set up a workspace for the given ID.
 
-        Creates a git workspace with an isolated session branch.  If the
-        session branch exists on the remote (from a previous execution),
-        it is checked out to preserve continuity.
+        If the workspace directory already exists on disk it is synced.
+        Otherwise a new workspace is created — either seeded from the
+        Docker image (new thread) or cloned from the remote (existing
+        session branch).
         """
         hash_str = self._hash_workspace_id(workspace_id)
         branch_name = f"session-{hash_str}"
@@ -122,17 +141,85 @@ class WorkspaceManager:
     def _hash_workspace_id(workspace_id: str) -> str:
         return hashlib.sha1(workspace_id.encode()).hexdigest()[:8]
 
-    # -- Git operations -----------------------------------------------------
+    # -- Workspace creation -------------------------------------------------
 
     async def _create_workspace(self, workspace_dir: str, branch_name: str) -> None:
-        """Clone the repository and check out the session branch.
+        """Create a new workspace — image-seed or clone-resume."""
+        session_exists = await self._session_branch_exists_on_remote(branch_name)
 
-        If the session branch exists on the remote (from a previous
-        execution), it is checked out.  Otherwise a new branch is
-        created from origin/default_branch.
+        if session_exists:
+            logger.info(
+                "Session branch %s found on remote — cloning for resume",
+                branch_name,
+            )
+            await self._clone_for_session_resume(workspace_dir, branch_name)
+        else:
+            logger.info(
+                "No session branch on remote — seeding from image: %s",
+                self._image_source_dir,
+            )
+            await self._seed_from_image(workspace_dir, branch_name)
+
+    async def _session_branch_exists_on_remote(self, branch_name: str) -> bool:
+        """Lightweight check via ``git ls-remote``."""
+        rc, stdout, _ = await self._run_git_checked(
+            "ls-remote", "--heads", self._repo_url, branch_name,
+        )
+        return rc == 0 and branch_name in stdout
+
+    # -- Strategy: seed from Docker image -----------------------------------
+
+    async def _seed_from_image(self, workspace_dir: str, branch_name: str) -> None:
+        """Copy code from the Docker image and initialise a git repo.
+
+        After the copy we attach the remote and try to graft the working
+        tree onto ``origin/<default_branch>`` so that future MR diffs
+        are clean.  If the remote is unreachable the workspace still
+        works — Claude just won't have upstream history.
         """
-        logger.info("Creating workspace: dir=%s branch=%s", workspace_dir, branch_name)
+        shutil.copytree(
+            self._image_source_dir,
+            workspace_dir,
+            ignore=shutil.ignore_patterns(
+                ".git", "__pycache__", "*.pyc", ".egg-info",
+            ),
+        )
 
+        await self._run_git("-C", workspace_dir, "init")
+        await self._run_git(
+            "-C", workspace_dir, "remote", "add", "origin", self._repo_url,
+        )
+
+        # Best-effort: fetch default branch so we can graft onto it
+        rc, _, _ = await self._run_git_checked(
+            "-C", workspace_dir,
+            "fetch", "origin", self._default_branch, "--depth=1",
+        )
+        if rc == 0:
+            await self._run_git_checked(
+                "-C", workspace_dir, "reset", "--soft",
+                f"origin/{self._default_branch}",
+            )
+            logger.info(
+                "Grafted image code onto origin/%s for clean MR diffs",
+                self._default_branch,
+            )
+
+        await self._run_git("-C", workspace_dir, "add", "-A")
+        await self._run_git(
+            "-C", workspace_dir,
+            "commit", "--allow-empty", "-m", "Seed from deployed image",
+        )
+        await self._run_git(
+            "-C", workspace_dir, "checkout", "-b", branch_name,
+        )
+
+    # -- Strategy: clone for session resume ---------------------------------
+
+    async def _clone_for_session_resume(
+        self, workspace_dir: str, branch_name: str,
+    ) -> None:
+        """Clone the repo and check out the existing session branch."""
         await self._run_git(
             "clone", "--depth", "20", self._repo_url, workspace_dir,
         )
@@ -143,22 +230,18 @@ class WorkspaceManager:
             f"{self._default_branch}:refs/remotes/origin/{self._default_branch}",
         )
 
-        # Try to check out the remote session branch (continuity from previous job)
-        rc, _, _ = await self._run_git_checked(
+        await self._run_git(
             "-C", workspace_dir,
-            "fetch", "origin", f"{branch_name}:refs/remotes/origin/{branch_name}",
+            "fetch", "origin",
+            f"{branch_name}:refs/remotes/origin/{branch_name}",
         )
-        if rc == 0:
-            await self._run_git(
-                "-C", workspace_dir,
-                "checkout", "-b", branch_name, f"origin/{branch_name}",
-            )
-            logger.info("Resumed existing session branch: %s", branch_name)
-        else:
-            await self._run_git(
-                "-C", workspace_dir,
-                "checkout", "-b", branch_name, f"origin/{self._default_branch}",
-            )
+        await self._run_git(
+            "-C", workspace_dir,
+            "checkout", "-b", branch_name, f"origin/{branch_name}",
+        )
+        logger.info("Resumed existing session branch: %s", branch_name)
+
+    # -- Sync (workspace already on disk) -----------------------------------
 
     async def _sync_workspace(self, workspace_dir: str, branch_name: str) -> None:
         """Sync an existing workspace with remote changes."""
@@ -197,6 +280,8 @@ class WorkspaceManager:
                 "-C", workspace_dir,
                 "reset", "--hard", f"origin/{self._default_branch}",
             )
+
+    # -- Git helpers --------------------------------------------------------
 
     async def _run_git(self, *args: str) -> None:
         proc = await asyncio.create_subprocess_exec(

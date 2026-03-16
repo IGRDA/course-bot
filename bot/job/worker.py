@@ -103,6 +103,7 @@ async def _process_event(event: dict) -> None:
         repo_url=repo_url,
         base_dir=os.environ.get("WORKSPACE_BASE_DIR", "/tmp"),
         default_branch=os.environ.get("DEFAULT_BRANCH", "main"),
+        image_source_dir=os.environ.get("IMAGE_SOURCE_DIR", "/app"),
     ) if repo_url else None
 
     agent_dir = os.environ.get(

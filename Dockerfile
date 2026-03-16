@@ -44,7 +44,13 @@ RUN mkdir -p /app/engine/agents /app/engine/workflows /app/engine/tools \
 RUN playwright install chromium
 
 # =============================================================================
-# Layer 4: Bot Python dependencies (changes when bot/pyproject.toml changes)
+# Layer 4: Pre-downloaded models (changes rarely — before bot deps so bot
+# pyproject.toml changes don't re-download ~1 GB of OCR models)
+# =============================================================================
+RUN python -c "import easyocr; easyocr.Reader(['es','en'], gpu=False)"
+
+# =============================================================================
+# Layer 5: Bot Python dependencies (changes when bot/pyproject.toml changes)
 # =============================================================================
 COPY bot/pyproject.toml /app/bot/pyproject.toml
 RUN mkdir -p /app/bot && \
@@ -52,13 +58,11 @@ RUN mkdir -p /app/bot && \
     pip install --no-cache-dir -e /app/bot
 
 # =============================================================================
-# Layer 5: Pre-downloaded models (changes rarely)
+# Layer 6: Git identity + application code
 # =============================================================================
-RUN python -c "import easyocr; easyocr.Reader(['es','en'], gpu=False)"
+RUN git config --global user.email "course-bot@noreply" && \
+    git config --global user.name "course-bot"
 
-# =============================================================================
-# Layer 6: Application code (changes frequently — fastest rebuild)
-# =============================================================================
 COPY engine/ /app/engine/
 COPY bot/ /app/bot/
 
