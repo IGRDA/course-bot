@@ -71,3 +71,24 @@ jobs:
         working-directory: bot
         run: |
           python -m pytest tests/ -v
+
+  test:
+    needs: [bot-test, engine-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report aggregate status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "${{ needs.bot-test.result }}" == "success" && "${{ needs.engine-test.result }}" == "success" ]]; then
+            STATE=success
+            DESC="All tests passed"
+          else
+            STATE=failure
+            DESC="Some tests failed"
+          fi
+          gh api "repos/${{ github.repository }}/statuses/${{ github.event.pull_request.head.sha }}" \
+            -f state="$STATE" \
+            -f context="test" \
+            -f description="$DESC"
