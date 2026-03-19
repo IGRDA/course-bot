@@ -5,7 +5,7 @@ description: Converts a PDF into structured markdown chapters and runs the digit
 
 # PDF to Course Digitalizer
 
-Convert a PDF into clean markdown chapters, then run the digitalization workflow.
+Convert the PDF to markdown chapters, fix up and embed images, validate, then run the workflow.
 
 ## Step 1: Convert PDF to markdown
 
@@ -13,46 +13,40 @@ Convert a PDF into clean markdown chapters, then run the digitalization workflow
 python -m tools.pdf2md.docling.converter <PDF_PATH> --no-ocr --split -o <OUTPUT_DIR>
 ```
 
-Use `--language en` for English PDFs (default: `es`). Output lands in `<OUTPUT_DIR>/chapters/` with one `.md` per module.
+Use `--language en` for English PDFs (default: `es`). Output lands in `<OUTPUT_DIR>/chapters/` with one `.md` per module plus an artifacts directory with extracted images.
 
-## Step 2: Post-process chapters
+The converter uses Docling with PyMuPDF fallback — always use this command, even if conversion has issues. If it fails, report the error.
 
-Read every `.md` file in `chapters/` and apply the fixes in [POST_PROCESSING.md](POST_PROCESSING.md).
+## Step 2: Fix up chapters and embed images
 
-### CRITICAL -- Structure constraints
+After conversion, you may need to clean up headings, merge short sections, or restructure content. When doing so, **preserve image references exactly as the converter produced them.**
 
-Validate these limits before proceeding to Step 3. Split or merge files and headings as needed:
+**CRITICAL — use exact filenames from the artifacts directory, never invent your own:**
 
-- **Modules**: minimum 3, maximum 15 (one `#` heading per `.md` file)
-- **Submodules per module**: minimum 3, maximum 15 (`##` headings)
-- **Sections** (`###`): each must have at least 150 words of flowing prose
+1. List the actual image files extracted by the converter:
+   ```bash
+   ls <OUTPUT_DIR>/chapters/artifacts/
+   ```
+2. When embedding images in markdown, copy the **exact filename** from the directory listing. The converter names files based on internal PDF identifiers (e.g. `artifacts/image_page5_1.png`) — you MUST use these exact names. **NEVER rename, simplify, or generate sequential names** like `img_001.jpg`, `img_1.png`, etc. Those files do not exist on disk and will break the pipeline.
+3. Embed as: `![descriptive alt text](artifacts/image_page5_1.png)` — the path inside `()` must match a real file from step 1.
+4. Match images to nearby text content. Max 4 images per `###` section. Distribute across chapters.
+5. Replace generic alt text with 5-10 word descriptions derived from surrounding content.
+6. **Validation (required before proceeding):**
+   ```bash
+   # Extract all image filenames referenced in markdown
+   grep -ohP '(?<=\(artifacts/)[^)]+' <OUTPUT_DIR>/chapters/*.md | sort > /tmp/md_images.txt
+   # List actual files on disk
+   ls <OUTPUT_DIR>/chapters/artifacts/ | sort > /tmp/disk_images.txt
+   # Show any referenced files that don't exist on disk (MUST be empty)
+   comm -23 /tmp/md_images.txt /tmp/disk_images.txt
+   ```
+   If `comm` outputs any filenames, those images will be missing from the final course. Fix them by replacing with actual filenames from `/tmp/disk_images.txt`.
 
-### Required heading structure
+## Step 3: Validate chapters
 
-Each `.md` file must follow this hierarchy exactly:
+Before running the workflow, verify all checks in [validation-checklist.md](validation-checklist.md).
 
-```markdown
-# Module Title
-
-Brief module description paragraph.
-
-## Submodule Title
-
-### Section Title
-Theory text (150+ words, prose paragraphs, not bullet lists)...
-
-### Another Section
-More theory...
-
-## Another Submodule
-
-### Section Title
-...
-```
-
-Rules: no numbered prefixes on headings, no duplicate `##`/`###` titles within the same module, no level skips (`#` to `###`).
-
-## Step 3: Run the digitalization workflow
+## Step 4: Run the digitalization workflow.
 
 ```bash
 python -m workflows.workflow_digitalize \
@@ -60,17 +54,17 @@ python -m workflows.workflow_digitalize \
   --title "Course Title" --language auto
 ```
 
-Add `--no-images` ONLY when the user explicitly does not want images. Add `--pdf` or `--podcast` as needed. Default LLM provider is Mistral.
+Add `--pdf` for PDF book, `--no-images` to skip internet image search, `--podcast` for audio.
 
-### CRITICAL -- Never kill the workflow
+Let it run to completion — it handles rate-limit retries automatically.
 
-NEVER kill, restart, or interrupt `workflow_digitalize`. The process handles rate-limit errors (HTTP 429) automatically with exponential backoff. Monitor by checking terminal output every 3 minutes. Only intervene if the process has produced zero new output for more than 15 minutes.
+Monitor by checking the `steps/` directory: `12_parse_markdown.json` → `14_restructure.json` → activities, HTML, etc.
 
-## Step 4: Validate output
+**IMPORTANT: Do NOT kill the workflow.** The restructure step makes multiple LLM calls (one per module) with automatic retries and fallback providers. Log lines like `[Mistral] Retrying call` mean the process IS working — do not interrupt it. Only intervene if you see a fatal error (unhandled exception / stack trace).
 
-Check the output JSON modules:
+## Step 5: Check output
 
-- Every module has non-null `video`, `bibliography`, `relevant_people`, `mindmap`
-- Section theory is clean, summaries are populated
-- Image queries are descriptive (not just "Image")
-- If issues found, fix the markdown source and re-run Step 3
+- Module JSON files should be > 5 KB with non-empty `description` fields and `html` content
+- If `--pdf` was used, check `book/book.pdf` exists
+
+For PDF-specific troubleshooting, see [validation-checklist.md](validation-checklist.md).

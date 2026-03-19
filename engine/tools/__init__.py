@@ -25,6 +25,14 @@ def __getattr__(name: str):
         }
         return _map[name]
 
+    if name in ("extract_images", "extract_images_from_urls"):
+        from .web_image_extractor import extract_images, extract_images_from_urls
+        return extract_images if name == "extract_images" else extract_images_from_urls
+
+    if name == "scrape_website":
+        from .web_scraper import scrape_website
+        return scrape_website
+
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -36,4 +44,7 @@ __all__ = [
     "create_video_search",
     "available_video_search_providers",
     "VideoResult",
+    "extract_images",
+    "extract_images_from_urls",
+    "scrape_website",
 ]

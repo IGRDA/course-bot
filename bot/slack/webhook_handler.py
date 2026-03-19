@@ -3,15 +3,20 @@
 1. Verifies the Slack signature
 2. Parses the event payload
 3. Handles URL verification challenge
-4. Dispatches heavy events (app_mention, message) to Cloud Run Jobs
-5. Handles lightweight events (reactions, member_joined) in-process
+4. Returns 200 immediately, then processes the event in the background
+5. Dispatches heavy events (app_mention, message) to Cloud Run Jobs
+6. Handles lightweight events (reactions, member_joined) in-process
 
-Deduplication: Slack may re-deliver events when the original attempt timed
-out or received a non-2xx response (e.g. during cold starts).  Instead of
-blindly dropping all retries (which silently loses events after restarts),
-we keep a bounded in-memory cache of event IDs that were *actually
-dispatched*.  A retry is only skipped when its event_id is already in the
-cache, meaning the original delivery was successfully received.
+IMPORTANT — immediate response: Slack retries events when it does not
+receive a 200 within ~3 seconds.  Because job dispatch involves slow GCP
+API calls (list_executions, run_job), the handler returns 200 *before*
+dispatching and runs the rest in a background asyncio task.  This prevents
+retry storms that produce spurious "still processing" messages.
+
+Deduplication: Slack may still re-deliver events (e.g. when the API server
+cold-starts and the socket closes before the 200 is sent).  We keep a
+bounded in-memory cache of event IDs as a best-effort first layer.
+The worker's hourglass-reaction claim provides a second distributed layer.
 """
 
 from __future__ import annotations
@@ -210,13 +215,32 @@ class SlackWebhookHandler:
             event_type = event.get("type", "")
 
             if event_type in _JOB_EVENT_TYPES:
-                await self._dispatch_to_job(event, event_type)
+                task = asyncio.create_task(
+                    self._safe_dispatch_to_job(event, event_type),
+                    name=f"job-dispatch-{event.get('ts', 'unknown')}",
+                )
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
             else:
                 self._dispatch_lightweight(event, event_type)
 
         return JSONResponse({"status": "ok"})
 
     # -- Job dispatch (heavy events) ----------------------------------------
+
+    async def _safe_dispatch_to_job(
+        self, event: dict[str, Any], event_type: str,
+    ) -> None:
+        """Background wrapper that ensures dispatch exceptions are logged."""
+        try:
+            await self._dispatch_to_job(event, event_type)
+        except Exception:
+            logger.exception(
+                "Background job dispatch failed: event_type=%s channel=%s ts=%s",
+                event_type,
+                event.get("channel", ""),
+                event.get("ts", ""),
+            )
 
     async def _dispatch_to_job(
         self, event: dict[str, Any], event_type: str,
@@ -345,11 +369,11 @@ class SlackWebhookHandler:
     # -- Graceful shutdown --------------------------------------------------
 
     async def shutdown(self, timeout: float = 30.0) -> None:
-        """Wait for in-process lightweight handler tasks to complete."""
+        """Wait for in-flight background tasks (dispatches + lightweight handlers)."""
         self._shutdown_event.set()
         if self._background_tasks:
             logger.info(
-                "Waiting for %d lightweight tasks (timeout=%.0fs)...",
+                "Waiting for %d background tasks (timeout=%.0fs)...",
                 len(self._background_tasks),
                 timeout,
             )

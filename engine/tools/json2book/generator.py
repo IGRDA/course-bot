@@ -307,6 +307,30 @@ def _generate_content(course_data: dict, images_dir: Path = None) -> str:
                 # Process HTML elements for images and other content
                 html_elements = section.get('html', []) or []
                 _process_html_elements(html_elements, lines, images_dir)
+
+                # Fallback: if no HTML elements, inject source_images directly
+                if not html_elements:
+                    for img_info in (section.get('source_images') or []):
+                        img_path = Path(img_info.get('path', ''))
+                        if img_path.exists() and _is_valid_latex_image(img_path):
+                            if images_dir:
+                                dest = images_dir / img_path.name
+                                if not dest.exists():
+                                    shutil.copy2(img_path, dest)
+                                filename = img_path.name
+                            else:
+                                filename = str(img_path)
+                            alt = img_info.get('alt', '')
+                            lines.append('')
+                            lines.append(r'\begin{figure}[H]')
+                            lines.append(r'\centering')
+                            lines.append(
+                                f'\\includegraphics[width=0.8\\textwidth,keepaspectratio]{{{filename}}}'
+                            )
+                            if alt and alt.lower() not in ('image', 'img', 'figure'):
+                                lines.append(f'\\caption{{{escape_latex_simple(alt)}}}')
+                            lines.append(r'\end{figure}')
+                            lines.append('')
     
     return '\n'.join(lines)
 

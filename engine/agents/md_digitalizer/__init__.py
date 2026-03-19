@@ -8,4 +8,7 @@ Optionally restructures the parsed content with LLM assistance.
 from .parser import parse_markdown_folder
 from .restructurer import restructure_course
 
-__all__ = ["parse_markdown_folder", "restructure_course"]
+__all__ = [
+    "parse_markdown_folder",
+    "restructure_course",
+]

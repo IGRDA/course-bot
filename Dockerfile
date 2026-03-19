@@ -14,7 +14,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwayland-client0 \
     # Docling / OpenCV headless deps
     libgl1 libglib2.0-0 libgomp1 \
-    # LaTeX for PDF book generation
+    # LaTeX for PDF book generation (xetex for native Unicode support)
+    texlive-xetex \
     texlive-latex-base texlive-latex-extra \
     texlive-fonts-recommended texlive-fonts-extra \
     texlive-bibtex-extra biber \
@@ -48,6 +49,14 @@ RUN playwright install chromium
 # pyproject.toml changes don't re-download ~1 GB of OCR models)
 # =============================================================================
 RUN python -c "import easyocr; easyocr.Reader(['es','en'], gpu=False)"
+
+# Pre-download Docling layout + table-structure models so the converter
+# works offline inside Cloud Run (no HuggingFace access at runtime).
+RUN python -c "\
+from docling.models.layout_model import LayoutModel; \
+from docling.models.table_structure_model import TableStructureModel; \
+LayoutModel.download_models(progress=True); \
+TableStructureModel.download_models(progress=True)"
 
 # =============================================================================
 # Layer 5: Bot Python dependencies (changes when bot/pyproject.toml changes)

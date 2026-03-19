@@ -14,8 +14,10 @@ Processes one module at a time to keep LLM context small and costs low.
 """
 
 import json
+import os
 import re
 import logging
+import time
 from typing import Optional
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -24,9 +26,17 @@ from langchain_core.output_parsers import StrOutputParser
 from workflows.state import CourseState, Module, Submodule, Section
 from LLMs.text2text import create_text_llm, resolve_text_model_name
 
+_FALLBACK_PROVIDERS = ["groq", "openai"]
+
 logger = logging.getLogger(__name__)
 
-_NUMBERED_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)+\.?\s+")
+_NUMBERED_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"TEXTO\s+\d+[.\-–—]+\s*"        # "TEXTO N.-" (Spanish textbooks)
+    r"|\d+(?:\.\d+)+[.\-–—]*\s*"     # multi-level: 1.1, 2.3.1 (optionally followed by .- )
+    r"|\d+[.\-–—]+\s*"               # single-level with punctuation: 1.-, 7.-, 1.
+    r")"
+)
 
 # ---------------------------------------------------------------------------
 # Prompt
@@ -43,8 +53,10 @@ Rules:
 descriptive titles. Use question-based or hook-style titles when possible \
 (e.g. "¿Por qué falla la física clásica?" instead of "Limitaciones de la \
 física clásica"). Keep the language matching the content.
-3. **Strip numbered prefixes**: Remove leading numbers like "1.1", "2.3.1" \
-from all titles. The hierarchy is already encoded in the structure.
+3. **Strip numbered prefixes**: Remove ALL leading numbers from titles. \
+This includes dot-separated numbers ("1.1", "2.3.1"), single numbers with \
+dashes ("1.-", "7.-"), and keyword-prefixed numbers ("TEXTO 1.-"). \
+The hierarchy is already encoded in the structure.
 4. **Description**: Write a 1–3 sentence module description summarising the \
 key topics. Match the content language.
 5. **Remove junk sections**: Set "keep" to false for sections whose theory is \
@@ -52,7 +64,7 @@ empty, contains only copyright notices, OCR artifacts, or table-of-contents \
 listings. Also flag sections whose theory_snippet contains obviously corrupted \
 content (unrelated English words in Spanish text, garbled formulas as prose, \
 text like "ATHLETIC", "Infection", "EXIT OF WORMHOLE").
-6. **Merge tiny sections**: If a section has fewer than 100 words of theory \
+6. **Merge tiny sections**: If a section has fewer than 150 words of theory \
 (check theory_length) and the previous section covers the same topic, set \
 "keep" to "merge_with_previous" to merge it into the preceding section.
 7. **Submodule descriptions**: For each submodule, write a 1–2 sentence \
@@ -96,7 +108,7 @@ Return the improved module as a JSON object with this exact schema:
 Values for "keep":
 - true: keep this section as-is
 - false: remove (empty, copyright-only, OCR junk, corrupted content)
-- "merge_with_previous": merge into the preceding section (for tiny sections <100 words)
+- "merge_with_previous": merge into the preceding section (for tiny sections <150 words)
 
 When in doubt, keep the section."""
 
@@ -391,52 +403,109 @@ def restructure_module(
     course_title: str,
     provider: str = "mistral",
     max_retries: int = 3,
+    fallback_providers: list[str] | None = None,
 ) -> tuple[Module, str | None]:
-    """Restructure a single module using an LLM.
+    """Restructure a single module using an LLM with fallback providers.
+
+    Tries the primary provider first.  If all retries fail, tries each
+    fallback provider in order.  On total failure keeps the original module.
 
     Returns:
         Tuple of (improved Module, detected language or None).
     """
     skeleton = _module_to_skeleton(module)
+    if fallback_providers is None:
+        fallback_providers = _FALLBACK_PROVIDERS
 
-    model_name = resolve_text_model_name(provider)
+    providers_to_try = [provider] + [p for p in fallback_providers if p != provider]
+    result = None
+    winning_provider = provider
+
+    for prov in providers_to_try:
+        model_name = resolve_text_model_name(prov)
+        if not model_name and not os.getenv(f"{prov.upper()}_API_KEY", ""):
+            print(f"      All attempts with {prov} failed, trying next provider...")
+            continue
+
+        llm_kwargs = {"temperature": 0.1}
+        if model_name:
+            llm_kwargs["model_name"] = model_name
+
+        try:
+            llm = create_text_llm(provider=prov, **llm_kwargs)
+        except Exception as e:
+            logger.warning("Could not create LLM for provider %s: %s", prov, e)
+            print(f"      All attempts with {prov} failed, trying next provider...")
+            continue
+
+        chain = _restructure_prompt | llm | StrOutputParser()
+        provider_succeeded = False
+
+        for attempt in range(max_retries):
+            t0 = time.time()
+            print(f"      [{prov}] attempt {attempt + 1}/{max_retries} ...")
+            try:
+                raw = chain.invoke({
+                    "course_title": course_title,
+                    "module_index": module.index,
+                    "module_skeleton": skeleton,
+                })
+                elapsed = time.time() - t0
+                print(f"      [{prov}] attempt {attempt + 1} succeeded ({elapsed:.1f}s)")
+                result = _robust_json_loads(raw)
+                winning_provider = prov
+                provider_succeeded = True
+                break
+
+            except json.JSONDecodeError as e:
+                elapsed = time.time() - t0
+                logger.warning(
+                    "Restructure attempt %d/%d with %s failed (JSON, %.1fs): %s",
+                    attempt + 1, max_retries, prov, elapsed, e,
+                )
+            except Exception as e:
+                elapsed = time.time() - t0
+                logger.warning(
+                    "Restructure attempt %d/%d with %s failed (%.1fs): %s",
+                    attempt + 1, max_retries, prov, elapsed, e,
+                )
+
+        if provider_succeeded:
+            break
+        print(f"      All attempts with {prov} failed, trying next provider...")
+
+    if result is None:
+        logger.error(
+            "All restructure attempts failed for module %d across providers %s, keeping original",
+            module.index, providers_to_try,
+        )
+        return module, None
+
+    detected_lang = result.get("language")
+    module = _apply_restructure(module, result)
+
+    model_name = resolve_text_model_name(winning_provider)
     llm_kwargs = {"temperature": 0.1}
     if model_name:
         llm_kwargs["model_name"] = model_name
-    llm = create_text_llm(provider=provider, **llm_kwargs)
-
-    chain = _restructure_prompt | llm | StrOutputParser()
-
-    detected_lang = None
-    for attempt in range(max_retries):
-        try:
-            raw = chain.invoke({
-                "course_title": course_title,
-                "module_index": module.index,
-                "module_skeleton": skeleton,
-            })
-            result = _robust_json_loads(raw)
-
-            detected_lang = result.get("language")
-            module = _apply_restructure(module, result)
-            break
-
-        except json.JSONDecodeError as e:
-            logger.warning(
-                "Restructure attempt %d/%d failed (JSON): %s",
-                attempt + 1, max_retries, e,
-            )
-        except Exception as e:
-            logger.warning(
-                "Restructure attempt %d/%d failed: %s",
-                attempt + 1, max_retries, e,
-            )
-    else:
-        logger.error("All restructure attempts failed for module %d, keeping original", module.index)
-        return module, None
+    llm = create_text_llm(provider=winning_provider, **llm_kwargs)
 
     _backfill_descriptions(module, llm, detected_lang or "Español")
+    _final_title_cleanup(module)
     return module, detected_lang
+
+
+def _final_title_cleanup(module: Module) -> None:
+    """Final pass to strip any residual numbered prefixes from all titles.
+
+    Acts as a safety net after LLM restructuring, in case the LLM
+    didn't fully clean up prefixes like '1.-', 'TEXTO 2.-', etc.
+    """
+    module.title = _strip_numbered_prefix(module.title)
+    for sm in module.submodules:
+        sm.title = _strip_numbered_prefix(sm.title)
+        for sec in sm.sections:
+            sec.title = _strip_numbered_prefix(sec.title)
 
 
 def restructure_course(
@@ -451,23 +520,30 @@ def restructure_course(
     """
     provider = provider or state.config.text_llm_provider
     course_title = state.title or "Untitled Course"
+    total = len(state.modules)
 
-    print(f"Restructuring {len(state.modules)} modules with LLM ({provider})...")
+    print(f"Restructuring {total} modules with LLM ({provider}, fallbacks={_FALLBACK_PROVIDERS})...")
+    course_t0 = time.time()
 
     detected_languages: list[str] = []
 
-    for module in state.modules:
-        print(f"   Module {module.index}: {module.title[:60]}...")
+    for idx, module in enumerate(state.modules):
+        mod_t0 = time.time()
+        print(f"   [{idx + 1}/{total}] Module {module.index}: {module.title[:60]}...")
         module, lang = restructure_module(
             module,
             course_title=course_title,
             provider=provider,
             max_retries=max_retries,
         )
+        mod_elapsed = time.time() - mod_t0
         if lang:
             detected_languages.append(lang)
         secs = sum(len(sm.sections) for sm in module.submodules)
-        print(f"      → {module.title[:60]}  ({len(module.submodules)} submodules, {secs} sections)")
+        print(
+            f"      -> {module.title[:60]}  ({len(module.submodules)} submodules, "
+            f"{secs} sections) [{mod_elapsed:.1f}s]"
+        )
 
     if detected_languages:
         from collections import Counter
@@ -475,7 +551,8 @@ def restructure_course(
         print(f"   Detected language: {dominant}")
         state.config.language = dominant
 
-    print("Restructuring complete!")
+    total_elapsed = time.time() - course_t0
+    print(f"Restructuring complete! ({total_elapsed:.1f}s total)")
     return state
 
 

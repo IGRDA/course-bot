@@ -129,9 +129,20 @@ def convert_pdf_to_markdown(
     logger.info(f"Table extraction: {extract_tables} (mode: {table_mode}, handling: {table_text_handling})")
 
     # --- Lazy imports of heavy docling dependencies ---
-    from docling.document_converter import DocumentConverter, PdfFormatOption
-    from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
-    from docling.datamodel.base_models import InputFormat
+    try:
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+        from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
+        from docling.datamodel.base_models import InputFormat
+        _docling_available = True
+    except ImportError:
+        _docling_available = False
+
+    if not _docling_available:
+        logger.warning("Docling not installed — using PyMuPDF fallback")
+        md_path = _pymupdf_fallback(pdf_path, output_base, doc_name, extract_images)
+        if return_string:
+            return Path(md_path).read_text(encoding="utf-8")
+        return md_path
 
     # Step 1: Configure pipeline with optimized settings
     pipeline_options = PdfPipelineOptions()
@@ -184,12 +195,16 @@ def convert_pdf_to_markdown(
             elapsed = time.time() - start_time
             logger.info(f"Conversion succeeded after repair in {elapsed:.2f} seconds")
         except Exception as second_error:
-            logger.error(f"Conversion failed even after PDF repair: {second_error}")
-            raise RuntimeError(
-                f"PDF conversion failed.\n"
-                f"  Original error: {first_error}\n"
-                f"  After repair: {second_error}"
-            ) from second_error
+            logger.warning(
+                f"Docling conversion failed even after repair: {second_error}"
+            )
+            logger.info("Falling back to PyMuPDF-based conversion")
+            md_path = _pymupdf_fallback(
+                pdf_path, output_base, doc_name, extract_images
+            )
+            if return_string:
+                return Path(md_path).read_text(encoding="utf-8")
+            return md_path
 
     # Step 3: Export markdown (with or without images)
     markdown_path = output_base / f"{doc_name}.md"
@@ -209,6 +224,12 @@ def convert_pdf_to_markdown(
     markdown_content = markdown_path.read_text(encoding="utf-8")
     logger.info(f"✓ Markdown: {len(markdown_content)} characters")
 
+    # Step 3b: If Docling didn't extract images, supplement with PyMuPDF
+    if extract_images and "![" not in markdown_content:
+        logger.info("Docling produced no image references — extracting images with PyMuPDF")
+        _supplement_images_with_pymupdf(pdf_path, output_base, doc_name, markdown_path)
+        markdown_content = markdown_path.read_text(encoding="utf-8")
+
     # Clean up temporary repaired PDF
     if repaired_path and repaired_path.exists():
         try:
@@ -221,6 +242,157 @@ def convert_pdf_to_markdown(
         return markdown_content
     else:
         return str(markdown_path)
+
+
+def _pymupdf_fallback(
+    pdf_path: Path,
+    output_base: Path,
+    doc_name: str,
+    extract_images: bool = True,
+) -> str:
+    """Extract markdown from a PDF using PyMuPDF when Docling is unavailable.
+
+    This produces lower-quality output than Docling but still extracts both
+    text *and* images, which is far better than ``pdftotext`` (text only).
+
+    Returns the path to the generated markdown file.
+    """
+    try:
+        import fitz  # PyMuPDF
+    except ImportError:
+        raise ImportError(
+            "PyMuPDF (fitz) is required for the fallback converter. "
+            "Install it with: pip install pymupdf"
+        )
+
+    logger.warning("Using PyMuPDF fallback converter (Docling unavailable)")
+
+    src = fitz.open(str(pdf_path))
+    artifacts_dir = output_base / f"{doc_name}_artifacts"
+    if extract_images:
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    md_lines: list[str] = []
+    img_counter = 0
+
+    for page_num in range(len(src)):
+        page = src[page_num]
+
+        # --- Extract images ---
+        if extract_images:
+            for img_idx, img_info in enumerate(page.get_images(full=True)):
+                xref = img_info[0]
+                try:
+                    pix = fitz.Pixmap(src, xref)
+                    if pix.n > 4:  # CMYK
+                        pix = fitz.Pixmap(fitz.csRGB, pix)
+                    w, h = pix.width, pix.height
+                    if w * h < 2500 or max(w, h) / max(min(w, h), 1) > 8:
+                        pix = None
+                        continue
+                    img_name = f"image_{img_counter:04d}_p{page_num + 1}_{w}x{h}.png"
+                    img_path = artifacts_dir / img_name
+                    pix.save(str(img_path))
+                    pix = None
+                    md_lines.append(f"![{img_name}]({img_path})")
+                    md_lines.append("")
+                    img_counter += 1
+                except Exception:
+                    continue
+
+        # --- Extract text blocks sorted top-to-bottom ---
+        blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
+        text_blocks = [b for b in blocks if b["type"] == 0]
+        text_blocks.sort(key=lambda b: (b["bbox"][1], b["bbox"][0]))
+
+        for block in text_blocks:
+            block_text = ""
+            for line in block.get("lines", []):
+                spans = line.get("spans", [])
+                if not spans:
+                    continue
+                line_text = "".join(s["text"] for s in spans).rstrip()
+                if not line_text.strip():
+                    continue
+
+                max_size = max(s["size"] for s in spans)
+                is_bold = any(s["flags"] & 2 ** 4 for s in spans)
+
+                if max_size >= 16 and len(line_text.split()) < 20:
+                    md_lines.append(f"# {line_text}")
+                    md_lines.append("")
+                    continue
+                elif max_size >= 13 and is_bold and len(line_text.split()) < 20:
+                    md_lines.append(f"## {line_text}")
+                    md_lines.append("")
+                    continue
+
+                block_text += line_text + " "
+
+            block_text = block_text.strip()
+            if block_text:
+                md_lines.append(block_text)
+                md_lines.append("")
+
+    src.close()
+
+    markdown_path = output_base / f"{doc_name}.md"
+    markdown_path.write_text("\n".join(md_lines), encoding="utf-8")
+
+    img_msg = f", {img_counter} images" if extract_images else ""
+    logger.info(
+        f"PyMuPDF fallback produced {len(md_lines)} lines{img_msg}: {markdown_path}"
+    )
+    return str(markdown_path)
+
+
+def _supplement_images_with_pymupdf(
+    pdf_path: Path,
+    output_base: Path,
+    doc_name: str,
+    markdown_path: Path,
+) -> None:
+    """Extract images via PyMuPDF and insert references into existing markdown."""
+    try:
+        import fitz
+    except ImportError:
+        logger.warning("PyMuPDF not available for image supplementing")
+        return
+
+    artifacts_dir = output_base / f"{doc_name}_artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    src = fitz.open(str(pdf_path))
+    img_counter = 0
+    image_lines: list[str] = []
+
+    for page_num in range(len(src)):
+        page = src[page_num]
+        for img_info in page.get_images(full=True):
+            xref = img_info[0]
+            try:
+                pix = fitz.Pixmap(src, xref)
+                if pix.n > 4:
+                    pix = fitz.Pixmap(fitz.csRGB, pix)
+                w, h = pix.width, pix.height
+                if w * h < 2500 or max(w, h) / max(min(w, h), 1) > 8:
+                    pix = None
+                    continue
+                img_name = f"image_{img_counter:04d}_p{page_num + 1}_{w}x{h}.png"
+                img_path = artifacts_dir / img_name
+                pix.save(str(img_path))
+                pix = None
+                image_lines.append(f"![{img_name}]({img_path})")
+                img_counter += 1
+            except Exception:
+                continue
+    src.close()
+
+    if image_lines:
+        md_text = markdown_path.read_text(encoding="utf-8")
+        md_text += "\n\n" + "\n\n".join(image_lines) + "\n"
+        markdown_path.write_text(md_text, encoding="utf-8")
+        logger.info(f"Supplemented {img_counter} images via PyMuPDF")
 
 
 def _repair_pdf(pdf_path: Path, output_dir: Path) -> Path:
@@ -375,7 +547,8 @@ def normalize_heading_levels(text: str) -> str:
 
     _module_header = re.compile(
         r"^(#{1,3})\s+"
-        r"(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)"
+        r"(?:M[óo]dulo|Module|Chapter|Cap[íi]tulo"
+        r"|T\s*EMA|Tema|Unidad|Unit|Topic|Lecci[óo]n|Lesson)"
         r"\s+\d+",
         re.IGNORECASE,
     )
@@ -441,16 +614,34 @@ def split_markdown_by_chapters(
         out = markdown_path.parent / "chapters"
     out.mkdir(parents=True, exist_ok=True)
 
-    # Default pattern: H1/H2 with Módulo|Module|Chapter|Capítulo + number
+    # Default: H1/H2 with common chapter keywords + number.
+    # Also handles OCR artifacts like "T EMA" and optional # prefix.
     if chapter_pattern is None:
         chapter_pattern = (
             r"^#{1,2}\s+"
-            r"(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)"
+            r"(?:M[óo]dulo|Module|Chapter|Cap[íi]tulo"
+            r"|T\s*EMA|Tema|Unidad|Unit|Topic|Lecci[óo]n|Lesson)"
             r"\s+\d+"
         )
 
     content = markdown_path.read_text(encoding="utf-8")
+
+    # Pre-process: promote plain-text chapter lines to markdown headings.
+    # Handles OCR artifacts like "T EMA" and bare "TEMA N" without #.
+    _chapter_keywords = (
+        r"(?:M[óo]dulo|Module|Chapter|Cap[íi]tulo"
+        r"|T\s*EMA|Tema|Unidad|Unit|Topic|Lecci[óo]n|Lesson)"
+    )
+    _bare_chapter_re = re.compile(
+        r"^(?!#)" + _chapter_keywords + r"\s+\d+",
+        re.IGNORECASE,
+    )
     lines = content.split("\n")
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        if _bare_chapter_re.match(stripped):
+            cleaned = re.sub(r"\bT\s+EMA\b", "TEMA", stripped, flags=re.IGNORECASE)
+            lines[i] = f"# {cleaned}"
 
     # Locate chapter boundaries and references
     boundaries: list[tuple[int, str]] = []
@@ -536,7 +727,8 @@ def split_markdown_by_chapters(
             num = num_match.group() if num_match else str(i + 1)
             raw_title = re.sub(r"^#+\s*", "", title)
             raw_title = re.sub(
-                r"^(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)\s+\d+\s*[:\-–—.]?\s*",
+                r"^(?:M[óo]dulo|Module|Chapter|Cap[íi]tulo"
+                r"|T\s*EMA|Tema|Unidad|Unit|Topic|Lecci[óo]n|Lesson)\s+\d+\s*[:\-–—.]?\s*",
                 "", raw_title, flags=re.IGNORECASE,
             )
             raw_title = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", raw_title)
@@ -545,8 +737,31 @@ def split_markdown_by_chapters(
 
         created.append(_write_chunk(fname, chunk, normalize=not is_references))
 
-    logger.info(f"Split into {len(created)} files in {out}")
-    return created
+    # Remove tiny chapter fragments (< 2KB) that are TOC entries or stubs.
+    # Append their content to the next real chapter.
+    MIN_CHAPTER_BYTES = 2000
+    final: list[Path] = []
+    pending_content = ""
+    for path in created:
+        if path.name == "00_frontmatter.md":
+            final.append(path)
+            continue
+        size = path.stat().st_size
+        if size < MIN_CHAPTER_BYTES:
+            pending_content += path.read_text(encoding="utf-8") + "\n"
+            path.unlink()
+        else:
+            if pending_content:
+                existing = path.read_text(encoding="utf-8")
+                path.write_text(pending_content + existing, encoding="utf-8")
+                pending_content = ""
+            final.append(path)
+    if pending_content and final:
+        last = final[-1]
+        last.write_text(last.read_text(encoding="utf-8") + "\n" + pending_content, encoding="utf-8")
+
+    logger.info(f"Split into {len(final)} files in {out}")
+    return final
 
 
 if __name__ == "__main__":

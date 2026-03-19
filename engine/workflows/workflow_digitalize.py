@@ -43,7 +43,7 @@ _original_images_node = generate_images_node
 _original_podcasts_node = generate_podcasts_node
 _original_pdf_node = generate_pdf_book_node
 
-# Controlled by a module-level flag set from CLI args before graph compilation
+# Controlled by module-level flags set from CLI args before graph compilation
 _skip_restructure = False
 
 
@@ -133,6 +133,9 @@ def build_digitalize_graph_conditional():
 
 if __name__ == "__main__":
     import argparse
+    import sys as _sys
+
+    _this_module = _sys.modules[__name__]
 
     parser = argparse.ArgumentParser(
         description="Digitalize markdown content into a complete course with HTML, podcast, and/or PDF book",
@@ -203,8 +206,8 @@ Examples:
     from LLMs.text2text.health_check import validate_provider_keys
     validate_provider_keys(args.provider)
 
-    # Set module-level flag so conditional node can check it
-    _skip_restructure = args.no_restructure
+    # Set module-level flags so conditional nodes can check them
+    _this_module._skip_restructure = args.no_restructure
 
     # Language: use "English" as fallback when auto-detect is requested
     # (the restructurer will detect and override)
@@ -286,45 +289,55 @@ Examples:
     if skipped:
         print(f"Skipped enrichments: {', '.join(skipped)}")
 
+    import traceback
+    from pathlib import Path as _Path
+
     app = build_digitalize_graph_conditional()
+    run_folder = _Path(output_mgr.get_run_folder())
 
-    result = app.invoke(
-        initial_state,
-        config={
-            "run_name": "Content Digitalization",
-            "configurable": {"output_manager": output_mgr},
-        },
-    )
+    try:
+        result = app.invoke(
+            initial_state,
+            config={
+                "run_name": "Content Digitalization",
+                "configurable": {"output_manager": output_mgr},
+            },
+        )
 
-    print("\nWorkflow completed successfully!")
+        print("\nWorkflow completed successfully!")
 
-    final_state = result if isinstance(result, CourseState) else CourseState.model_validate(result)
+        final_state = result if isinstance(result, CourseState) else CourseState.model_validate(result)
 
-    output_mgr.save_final(final_state)
-    output_mgr.save_modules(final_state)
+        output_mgr.save_final(final_state)
+        output_mgr.save_modules(final_state)
 
-    total_sections = sum(len(s.sections) for m in final_state.modules for s in m.submodules)
-    modules = final_state.modules
-    print(f"\nCourse Summary:")
-    print(f"   Title: {final_state.title}")
-    print(f"   Modules: {len(modules)}")
-    print(f"   Total Sections: {total_sections}")
-    print(f"   Language: {final_state.language}")
+        total_sections = sum(len(s.sections) for m in final_state.modules for s in m.submodules)
+        modules = final_state.modules
+        print(f"\nCourse Summary:")
+        print(f"   Title: {final_state.title}")
+        print(f"   Modules: {len(modules)}")
+        print(f"   Total Sections: {total_sections}")
+        print(f"   Language: {final_state.language}")
 
-    # Enrichment status
-    has_videos = sum(1 for m in modules if m.video is not None)
-    has_bib = sum(1 for m in modules if m.bibliography is not None)
-    has_people = sum(1 for m in modules if m.relevant_people)
-    has_mindmap = sum(1 for m in modules if m.mindmap is not None)
-    has_summary = sum(
-        1 for m in modules for sm in m.submodules for s in sm.sections if s.summary
-    )
+        has_videos = sum(1 for m in modules if m.video is not None)
+        has_bib = sum(1 for m in modules if m.bibliography is not None)
+        has_people = sum(1 for m in modules if m.relevant_people)
+        has_mindmap = sum(1 for m in modules if m.mindmap is not None)
+        has_summary = sum(
+            1 for m in modules for sm in m.submodules for s in sm.sections if s.summary
+        )
 
-    if final_state.bibliography:
-        print(f"   Bibliography: {len(final_state.bibliography.all_books)} books")
-    print(f"   Videos: {has_videos}/{len(modules)} modules")
-    print(f"   Bibliography (module): {has_bib}/{len(modules)} modules")
-    print(f"   People: {has_people}/{len(modules)} modules")
-    print(f"   Mindmaps: {has_mindmap}/{len(modules)} modules")
-    print(f"   Summaries: {has_summary}/{total_sections} sections")
-    print(f"\nAll outputs saved to: {output_mgr.get_run_folder()}")
+        if final_state.bibliography:
+            print(f"   Bibliography: {len(final_state.bibliography.all_books)} books")
+        print(f"   Videos: {has_videos}/{len(modules)} modules")
+        print(f"   Bibliography (module): {has_bib}/{len(modules)} modules")
+        print(f"   People: {has_people}/{len(modules)} modules")
+        print(f"   Mindmaps: {has_mindmap}/{len(modules)} modules")
+        print(f"   Summaries: {has_summary}/{total_sections} sections")
+        print(f"\nAll outputs saved to: {run_folder}")
+
+        (run_folder / "WORKFLOW_DONE").write_text("ok\n")
+
+    except Exception:
+        (run_folder / "WORKFLOW_ERROR").write_text(traceback.format_exc())
+        raise

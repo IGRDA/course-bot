@@ -131,11 +131,12 @@ class ClaudeClient:
                 "Skill",
             ],
             setting_sources=["project"],
+            permission_mode="acceptEdits",
             cwd=effective_cwd,
             model="sonnet",
             env={
-                "BASH_DEFAULT_TIMEOUT_MS": "3600000",
-                "BASH_MAX_TIMEOUT_MS": "3600000",
+                "BASH_DEFAULT_TIMEOUT_MS": "5400000",
+                "BASH_MAX_TIMEOUT_MS": "5400000",
             },
             stderr=lambda line: logger.info("Claude CLI: %s", line),
         )

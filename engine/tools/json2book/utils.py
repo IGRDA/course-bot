@@ -240,11 +240,50 @@ def _escape_special_chars(text: str) -> str:
     for char, replacement in UNICODE_TO_LATEX.items():
         text = text.replace(char, replacement)
     
+    # Strip Private Use Area characters (U+E000–U+F8FF) and other
+    # unsupported Unicode that commonly appears in OCR'd PDFs.
+    text = _strip_unsupported_unicode(text)
+    
     # Break up >> and << which are active chars in babel-spanish (quoting shorthands)
     text = text.replace('>>', '>{}>') 
     text = text.replace('<<', '<{}<')
     
     return text
+
+
+_PUA_RE = re.compile(
+    r'[\uE000-\uF8FF'       # Private Use Area (BMP)
+    r'\U000F0000-\U000FFFFD' # Supplementary PUA-A
+    r'\U00100000-\U0010FFFD' # Supplementary PUA-B
+    r'\uFFF0-\uFFFD'         # Specials block
+    r'\uFFFE\uFFFF'          # Non-characters
+    r']'
+)
+
+_PUA_BULLET_CHARS = frozenset([
+    '\uF0B7',  # PUA bullet (common in Word/PDF)
+    '\uF0A7',  # PUA section sign
+    '\uF0D8',  # PUA arrow
+    '\uF0FC',  # PUA checkmark
+    '\uF076',  # PUA bullet variant
+    '\uF0A0',  # PUA non-breaking space variant
+])
+
+
+def _strip_unsupported_unicode(text: str) -> str:
+    """Replace PUA and other unsupported Unicode chars with safe equivalents.
+
+    PDF OCR often produces Private Use Area characters (e.g. U+F0B7 for
+    bullets) that pdflatex/xelatex cannot render.  Known bullet-like PUA
+    chars are replaced with a LaTeX bullet; the rest are silently removed.
+    """
+    def _replace(m: re.Match) -> str:
+        ch = m.group()
+        if ch in _PUA_BULLET_CHARS:
+            return r'$\bullet$ '
+        return ''
+
+    return _PUA_RE.sub(_replace, text)
 
 
 def escape_latex_simple(text: str) -> str:
@@ -258,6 +297,8 @@ def escape_latex_simple(text: str) -> str:
     
     for char, replacement in LATEX_SPECIAL_CHARS.items():
         result = result.replace(char, replacement)
+    
+    result = _strip_unsupported_unicode(result)
     
     return result
 
@@ -304,6 +345,25 @@ def markdown_to_latex(text: str) -> str:
         placeholder_map[placeholder] = math
         result = result.replace(math, placeholder, 1)
     
+    # Convert Markdown tables BEFORE bold/italic so that pipe delimiters
+    # are consumed first — otherwise *...*  matching can span across cells.
+    # Protect converted tables with placeholders so bold/italic regex
+    # cannot match stray * characters inside LaTeX table output.
+    table_placeholder_map = {}
+    def _replace_table(m):
+        idx = len(table_placeholder_map)
+        ph = f"__TABLE_PLACEHOLDER_{idx}__"
+        table_placeholder_map[ph] = m.group(0)
+        return ph
+
+    result = _convert_markdown_tables(result)
+    result = re.sub(
+        r'\\begin\{table\}\[H\].*?\\end\{table\}',
+        _replace_table,
+        result,
+        flags=re.DOTALL,
+    )
+    
     # Convert **bold** to \textbf{} (must be done before italic)
     result = re.sub(r'\*\*(.+?)\*\*', r'\\textbf{\1}', result)
     
@@ -311,8 +371,9 @@ def markdown_to_latex(text: str) -> str:
     # This avoids converting standalone asterisks like "regret*"
     result = re.sub(r'(?<![*\w])\*([^*\n]+?)\*(?![*\w])', r'\\textit{\1}', result)
     
-    # Convert Markdown tables to LaTeX tables
-    result = _convert_markdown_tables(result)
+    # Restore tables
+    for ph, table_latex in table_placeholder_map.items():
+        result = result.replace(ph, table_latex)
     
     # Convert bullet lists
     result = _convert_bullet_lists(result)
@@ -523,23 +584,26 @@ def _convert_markdown_tables(text: str) -> str:
 
 
 def _sanitize_table_cell(cell: str) -> str:
-    """Sanitize a table cell to remove problematic LaTeX environments.
+    """Sanitize a table cell to remove problematic LaTeX environments and formatting.
     
     Table cells cannot contain itemize, enumerate, or other block environments.
-    This function converts them to inline text.
+    Inline formatting (bold/italic/underline/tt) is also stripped so that
+    header wrapping with \\textbf{} doesn't create broken nesting.
     """
-    # Remove itemize environments and convert \item to bullet character
     cell = re.sub(r'\\begin\{itemize\}', '', cell)
     cell = re.sub(r'\\end\{itemize\}', '', cell)
     cell = re.sub(r'\\begin\{enumerate\}', '', cell)
     cell = re.sub(r'\\end\{enumerate\}', '', cell)
     cell = re.sub(r'\\item\s*', '• ', cell)
     
-    # Remove any stray begin/end environments that could break tables
     cell = re.sub(r'\\begin\{[^}]+\}', '', cell)
     cell = re.sub(r'\\end\{[^}]+\}', '', cell)
     
-    # Clean up multiple spaces/newlines
+    cell = re.sub(r'\\textbf\{([^}]*)\}', r'\1', cell)
+    cell = re.sub(r'\\textit\{([^}]*)\}', r'\1', cell)
+    cell = re.sub(r'\\underline\{([^}]*)\}', r'\1', cell)
+    cell = re.sub(r'\\texttt\{([^}]*)\}', r'\1', cell)
+    
     cell = re.sub(r'\s+', ' ', cell)
     
     return cell.strip()
@@ -610,7 +674,8 @@ def _convert_bullet_lists(text: str) -> str:
             if not in_list:
                 result.append(r'\begin{itemize}')
                 in_list = True
-            result.append(r'    \item ' + match.group(2))
+            item_text = re.sub(r'^\$\\bullet\$\s*', '', match.group(2))
+            result.append(r'    \item ' + item_text)
         else:
             if in_list and line.strip():  # Non-empty line that's not a list item
                 result.append(r'\end{itemize}')
@@ -637,7 +702,8 @@ def _convert_numbered_lists(text: str) -> str:
             if not in_list:
                 result.append(r'\begin{enumerate}')
                 in_list = True
-            result.append(r'    \item ' + match.group(2))
+            item_text = re.sub(r'^\$\\bullet\$\s*', '', match.group(2))
+            result.append(r'    \item ' + item_text)
         else:
             if in_list and line.strip():  # Non-empty line that's not a list item
                 result.append(r'\end{enumerate}')

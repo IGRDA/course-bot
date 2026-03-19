@@ -42,7 +42,8 @@ _OBJECTIVES_RE = re.compile(
 )
 
 _GENERIC_MODULE_TITLE_RE = re.compile(
-    r"^(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)\s+\d+\s*$",
+    r"^(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo"
+    r"|Tema|Unidad|Unit|Topic|Lección|Leccion|Lesson)\s+\d+\s*$",
     re.IGNORECASE,
 )
 
@@ -59,7 +60,12 @@ _OCR_JUNK_RE = re.compile(
 
 _STRAY_SINGLE_CHAR_RE = re.compile(r"(?<=\n)\s*[A-Z]\s*(?=\n)")
 
-_NUMBERED_PREFIX_RE = re.compile(r"^\d+(?:\.\d+)+\.?\s+")
+_NUMBERED_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"|\d+(?:\.\d+)+[.\-–—]*\s*"     # multi-level: 1.1, 2.3.1 (optionally followed by .- )
+    r"|\d+[.\-–—]+\s*"               # single-level with punctuation: 1.-, 7.-, 1.
+    r")"
+)
 
 _MALFORMED_HEADING_RE = re.compile(
     r"^[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]{5,}$"
@@ -72,12 +78,27 @@ _MALFORMED_HEADING_RE = re.compile(
 
 _PRECEDING_SNIPPET_LEN = 200
 
-_MIN_SECTION_WORDS = 100
+_MIN_SECTION_WORDS = 150
+
+
+_MAX_IMAGES_PER_SECTION = 5
+
+_MIN_MODULES = 3
+_MAX_MODULES = 15
+_MIN_SUBMODULES = 3
+_MAX_SUBMODULES = 15
 
 
 def _strip_numbered_prefix(title: str) -> str:
     """Remove leading numbered prefixes like ``1.1``, ``2.3.1`` from a title."""
     return _NUMBERED_PREFIX_RE.sub("", title).strip()
+
+
+def _normalize_title_for_comparison(title: str) -> str:
+    """Normalize a title for duplicate detection (lowercase, no prefixes, no punctuation)."""
+    t = _strip_numbered_prefix(title).lower().strip()
+    t = re.sub(r"[^\w\s]", "", t)
+    return re.sub(r"\s+", " ", t).strip()
 
 
 def _is_malformed_heading(title: str) -> bool:
@@ -197,8 +218,12 @@ def _normalize_headings_if_needed(md_text: str) -> str:
     """Apply heading-level correction when headings appear to be flattened.
 
     When all headings use the same markdown level (e.g. all ``##``), this
-    detects numbered prefixes (``X.Y``, ``X.Y.Z``) and module keywords to
-    infer the correct hierarchy.  Already-correct markdown is returned as-is.
+    detects numbered prefixes (``X.Y``, ``X.Y.Z``, ``N.-``) and module
+    keywords to infer the correct hierarchy.  Already-correct markdown is
+    returned as-is.
+
+    Handles both academic numbering (1.1, 2.3.1) and Spanish textbook
+    numbering (1.-, 7.-, TEXTO 1.-).
     """
     headings = list(_HEADING_RE.finditer(md_text))
     if not headings:
@@ -209,11 +234,17 @@ def _normalize_headings_if_needed(md_text: str) -> str:
         return md_text
 
     _mod_re = re.compile(
-        r"^(#{1,3})\s+(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo)\s+\d+",
+        r"^(#{1,3})\s+(?:Módulo|Modulo|Module|Chapter|Capítulo|Capitulo"
+        r"|Tema|Unidad|Unit|Topic|Lección|Leccion|Lesson)\s+\d+",
         re.IGNORECASE,
     )
     _sec3_re = re.compile(r"^(#{1,3})\s+\d+\.\d+\.\d+\b")
     _sub2_re = re.compile(r"^(#{1,3})\s+\d+\.\d+\b")
+    # Spanish textbook: "## 1.-Title" or "## TEXTO 1.-Title" → section (###)
+    _spanish_section_re = re.compile(
+        r"^(#{1,3})\s+(?:TEXTO\s+)?\d+\s*[.\-–—]+\s*\S",
+        re.IGNORECASE,
+    )
 
     lines = md_text.split("\n")
     result: list[str] = []
@@ -228,6 +259,9 @@ def _normalize_headings_if_needed(md_text: str) -> str:
             changed = True
         elif _sub2_re.match(line):
             result.append(re.sub(r"^#{1,3}", "##", line))
+            changed = True
+        elif _spanish_section_re.match(line):
+            result.append(re.sub(r"^#{1,3}", "###", line))
             changed = True
         else:
             result.append(line)
@@ -387,6 +421,22 @@ def parse_module_file(filepath: Path, source_folder: Path, module_index: int) ->
             continue
 
         if level == 3:
+            norm_sec = _normalize_title_for_comparison(title)
+            norm_parent = _normalize_title_for_comparison(current_submodule_title)
+            if norm_sec and norm_parent and norm_sec == norm_parent:
+                logger.info(
+                    "Merging duplicate child section into parent submodule: '%s'",
+                    title[:60],
+                )
+                if current_sections:
+                    current_sections[-1].theory += "\n\n" + _clean_ocr_artifacts(body)
+                else:
+                    clean_body = _clean_ocr_artifacts(body)
+                    section = _body_to_section(title, clean_body, filepath, source_folder, 1)
+                    if section.theory.strip():
+                        current_sections.append(section)
+                continue
+
             clean_body = _clean_ocr_artifacts(body)
             section = _body_to_section(title, clean_body, filepath, source_folder, len(current_sections) + 1)
             current_sections.append(section)
@@ -451,6 +501,12 @@ def _body_to_section(
     """Build a ``Section`` from a heading title and its body text."""
     images = extract_images_with_context(body)
     resolved_images = _resolve_image_paths(images, md_file, source_folder) if images else None
+    if resolved_images and len(resolved_images) > _MAX_IMAGES_PER_SECTION:
+        logger.info(
+            "Capping images in section '%s' from %d to %d",
+            title[:60], len(resolved_images), _MAX_IMAGES_PER_SECTION,
+        )
+        resolved_images = resolved_images[:_MAX_IMAGES_PER_SECTION]
     clean_theory = strip_images(body).strip()
 
     return Section(
@@ -515,6 +571,33 @@ def parse_markdown_folder(
         logger.info("  Parsing module %d: %s", content_index, md_file.name)
         module = parse_module_file(md_file, source, module_index=content_index)
         modules.append(module)
+
+    if len(modules) < _MIN_MODULES:
+        logger.warning(
+            "Only %d module(s) parsed — expected at least %d. "
+            "The source content may be too short or poorly split.",
+            len(modules), _MIN_MODULES,
+        )
+    elif len(modules) > _MAX_MODULES:
+        logger.warning(
+            "%d modules parsed — expected at most %d. "
+            "Consider merging related modules.",
+            len(modules), _MAX_MODULES,
+        )
+
+    for mod in modules:
+        n_sub = len(mod.submodules)
+        if n_sub < _MIN_SUBMODULES:
+            logger.warning(
+                "Module '%s' has only %d submodule(s) — expected at least %d.",
+                mod.title[:60], n_sub, _MIN_SUBMODULES,
+            )
+        elif n_sub > _MAX_SUBMODULES:
+            logger.warning(
+                "Module '%s' has %d submodules — expected at most %d. "
+                "Consider splitting this module.",
+                mod.title[:60], n_sub, _MAX_SUBMODULES,
+            )
 
     if not title:
         title = _title_from_filename(Path(folder_path))
