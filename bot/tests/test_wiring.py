@@ -16,7 +16,7 @@ from typing import Any
 import pytest
 
 
-APP_ROOT = Path(__file__).resolve().parent.parent / "app"
+APP_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _get_init_params(cls: type) -> set[str]:

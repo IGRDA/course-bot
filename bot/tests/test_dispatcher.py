@@ -107,12 +107,14 @@ class TestDispatch:
         """Test dispatch without patching run_v2 — uses real types."""
         from google.cloud import run_v2
 
-        dispatcher = JobDispatcher(
-            project_id="test-project",
-            region="europe-west1",
-            job_name="test-job",
-            max_concurrent=5,
-        )
+        with patch("bot.job.dispatcher.run_v2.JobsClient"), \
+             patch("bot.job.dispatcher.run_v2.ExecutionsClient"):
+            dispatcher = JobDispatcher(
+                project_id="test-project",
+                region="europe-west1",
+                job_name="test-job",
+                max_concurrent=5,
+            )
         dispatcher._jobs_client = MagicMock()
         dispatcher._executions_client = MagicMock()
 
