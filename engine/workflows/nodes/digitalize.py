@@ -3,6 +3,7 @@ Content digitalization nodes for parsing markdown and injecting local images.
 
 Provides LangGraph nodes:
 - parse_markdown_folder_node: reads a folder of .md files into CourseState
+- validate_structure_node: checks for pathological structures and re-splits via LLM
 - restructure_parsed_content_node: LLM-assisted validation/improvement of parsed structure
 - inject_local_images_node: places local images into ParagraphBlocks after HTML formatting
 """
@@ -61,6 +62,31 @@ def parse_markdown_folder_node(state: CourseState, config: Optional[RunnableConf
     output_mgr = get_output_manager(config)
     if output_mgr:
         output_mgr.save_step("parse_markdown", state)
+
+    return state
+
+
+# ---------------------------------------------------------------------------
+# Node 1.5: Structure validation and auto-split
+# ---------------------------------------------------------------------------
+
+def validate_structure_node(state: CourseState, config: Optional[RunnableConfig] = None) -> CourseState:
+    """Check parsed structure and re-split oversized modules via LLM.
+
+    When the parser produces a pathological structure (e.g. a single module
+    with 90+ submodules because the chapter splitter failed), this node
+    sends a compact heading TOC to an LLM which groups the submodules into
+    proper course modules.  When the structure looks healthy this is a no-op.
+    """
+    print("Validating parsed course structure...")
+
+    from agents.md_digitalizer.structure_validator import validate_and_split
+
+    state = validate_and_split(state)
+
+    output_mgr = get_output_manager(config)
+    if output_mgr:
+        output_mgr.save_step("validate_structure", state)
 
     return state
 

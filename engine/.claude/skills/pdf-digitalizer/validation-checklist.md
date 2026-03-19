@@ -12,7 +12,7 @@ Before running `workflow_digitalize.py`, verify the chapters produced by `pdf2md
 - [ ] No section has fewer than 150 words of theory
 - [ ] No PDF artifacts remain (headers, footers, page numbers, watermarks)
 - [ ] Content is factually faithful to the source PDF
-- [ ] 3-15 module files with substantive content
+- [ ] 3-15 module files with substantive content (if the converter produces fewer, the workflow's `validate_structure` step will auto-split via LLM)
 - [ ] 3-15 submodules per module
 - [ ] Extracted images referenced via local paths (`![alt](artifacts/img_xxx.jpg)`) — not remote URLs
 - [ ] Image filenames in markdown match actual files on disk (`ls <chapters>/artifacts/` to verify) — never use invented sequential names like `img_001.jpg`
@@ -42,6 +42,7 @@ Sections without source images get stock images from internet search (if enabled
 
 - PDF converter: `tools/pdf2md/docling/converter.py`
 - Parser: `agents/md_digitalizer/parser.py`
+- Structure validator: `agents/md_digitalizer/structure_validator.py`
 - Restructurer: `agents/md_digitalizer/restructurer.py`
 - Workflow: `workflows/workflow_digitalize.py`
 - Image injection: `workflows/nodes/digitalize.py`

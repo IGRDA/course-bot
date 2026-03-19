@@ -20,6 +20,7 @@ from workflows.output_manager import OutputManager
 from workflows.nodes.digitalize import detect_language_node
 from workflows.nodes import (
     parse_markdown_folder_node,
+    validate_structure_node,
     restructure_parsed_content_node,
     calculate_metadata_node,
     generate_activities_node,
@@ -106,6 +107,7 @@ def build_digitalize_graph_conditional():
     graph = StateGraph(CourseState)
 
     graph.add_node("parse_markdown", parse_markdown_folder_node)
+    graph.add_node("validate_structure", validate_structure_node)
     graph.add_node("restructure_content", _conditional_restructure_node)
     graph.add_node("calculate_metadata", calculate_metadata_node)
     graph.add_node("generate_activities", _conditional_activities_node)
@@ -117,7 +119,8 @@ def build_digitalize_graph_conditional():
     graph.add_node("generate_pdf_book", _conditional_pdf_node)
 
     graph.add_edge(START, "parse_markdown")
-    graph.add_edge("parse_markdown", "restructure_content")
+    graph.add_edge("parse_markdown", "validate_structure")
+    graph.add_edge("validate_structure", "restructure_content")
     graph.add_edge("restructure_content", "calculate_metadata")
     graph.add_edge("calculate_metadata", "generate_activities")
     graph.add_edge("generate_activities", "generate_html")

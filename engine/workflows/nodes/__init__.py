@@ -35,10 +35,11 @@ def __getattr__(name: str):
         return calculate_metadata_node
 
     # Digitalize
-    if name in ("parse_markdown_folder_node", "inject_local_images_node", "restructure_parsed_content_node"):
-        from .digitalize import parse_markdown_folder_node, inject_local_images_node, restructure_parsed_content_node
+    if name in ("parse_markdown_folder_node", "validate_structure_node", "inject_local_images_node", "restructure_parsed_content_node"):
+        from .digitalize import parse_markdown_folder_node, validate_structure_node, inject_local_images_node, restructure_parsed_content_node
         _dmap = {
             "parse_markdown_folder_node": parse_markdown_folder_node,
+            "validate_structure_node": validate_structure_node,
             "inject_local_images_node": inject_local_images_node,
             "restructure_parsed_content_node": restructure_parsed_content_node,
         }
@@ -102,6 +103,7 @@ __all__ = [
     "generate_pdf_book_node",
     # Digitalize
     "parse_markdown_folder_node",
+    "validate_structure_node",
     "inject_local_images_node",
     "restructure_parsed_content_node",
 ]

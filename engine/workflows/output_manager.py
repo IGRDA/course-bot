@@ -38,6 +38,7 @@ class OutputManager:
         "inject_images": 13,
         "restructure": 14,
         "enrichments": 15,
+        "validate_structure": 16,
     }
     
     def __init__(self, title: str, output_dir: str = "output"):

@@ -58,9 +58,11 @@ Add `--pdf` for PDF book, `--no-images` to skip internet image search, `--podcas
 
 Let it run to completion — it handles rate-limit retries automatically.
 
-Monitor by checking the `steps/` directory: `12_parse_markdown.json` → `14_restructure.json` → activities, HTML, etc.
+Monitor by checking the `steps/` directory: `12_parse_markdown.json` → `16_validate_structure.json` → `14_restructure.json` → activities, HTML, etc.
 
-**IMPORTANT: Do NOT kill the workflow.** The restructure step makes multiple LLM calls (one per module) with automatic retries and fallback providers. Log lines like `[Mistral] Retrying call` mean the process IS working — do not interrupt it. Only intervene if you see a fatal error (unhandled exception / stack trace).
+The **validate_structure** step (step 16) runs automatically after parsing. If the converter produced too few modules (e.g. a single module with many submodules because the chapter-splitting regex didn't match), this step uses an LLM to analyze the heading structure and re-split into proper modules. It only makes an LLM call when an anomaly is detected; well-structured inputs pass through instantly.
+
+**IMPORTANT: Do NOT kill the workflow.** The restructure and validation steps make multiple LLM calls with automatic retries and fallback providers. Log lines like `[Mistral] Retrying call` mean the process IS working — do not interrupt it. Only intervene if you see a fatal error (unhandled exception / stack trace).
 
 ## Step 5: Check output
 
