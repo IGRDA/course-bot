@@ -213,7 +213,7 @@ oldjs/
 oldjsfeedback/
 
 # Generated course output
-output/
+engine/output/
 
 # Example PDF syllabi
 example_pdfs/
@@ -225,10 +225,26 @@ stract_module.py
 
 # Migration
 migration/
+MIGRATION_SECRETS.md
 
 # Example courses
 curso_*/
 
 # Large audio (use mp3 or LFS if needed)
 *.wav
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform/terraform.tfvars.example
+!terraform/env/*.tfvars
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+tfplan-*
 

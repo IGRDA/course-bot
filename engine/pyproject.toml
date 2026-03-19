@@ -1,0 +1,125 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "course-generator-agent"
+version = "0.1.0"
+description = "AI-powered course content generator"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+dependencies = [
+    # LangChain ecosystem
+    "langchain==0.3.27",
+    "langchain-core==0.3.81",
+    "langchain-community==0.3.30",
+    "langchain-openai==0.3.35",
+    "langchain-deepseek==0.1.4",
+    "langchain-groq==0.3.8",
+    "langchain-mistralai==0.2.12",
+    "langchain-google-genai==2.0.4",
+    "langchain-tavily==0.2.13",
+    "langgraph==0.6.7",
+    "langsmith==0.4.31",
+    # Core
+    "pydantic==2.11.9",
+    "requests==2.32.5",
+    "beautifulsoup4==4.13.5",
+    "tenacity>=8.0.0",
+    # Web search
+    "ddgs==9.6.0",
+    "wikipedia==1.4.0",
+    # Image search / browser automation
+    "playwright==1.55.0",
+    "playwright-stealth==2.0.0",
+    # Tokenizers (lightweight Rust binary, needed by langchain_mistralai)
+    "tokenizers>=0.19.0",
+    # TTS for podcast generation (Edge TTS - default, cloud-based)
+    "edge-tts>=7.0.0",
+    # Audio manipulation
+    "pydub>=0.25.1",
+    "mutagen>=1.47.0",
+    # PDF book generation (image processing)
+    "Pillow>=10.0.0",
+    # Data
+    "pandas>=2.1.4",
+    "jsonlines>=4.0.0",
+    # Video search (YouTube metadata extraction)
+    "yt-dlp>=2024.1.0",
+]
+
+[project.optional-dependencies]
+# ---------------------------------------------------------------------------
+# PDF to Markdown extraction (docling + OCR) — heavy, ~2 GB
+# Install: pip install -e ".[pdf-extraction]"
+# ---------------------------------------------------------------------------
+pdf-extraction = [
+    "docling==2.63.0",
+    "easyocr==1.7.2",
+]
+
+# ---------------------------------------------------------------------------
+# ML / Transformers — heavy, ~2 GB (torch + transformers)
+# Install: pip install -e ".[ml]"
+# ---------------------------------------------------------------------------
+ml = [
+    "transformers>=4.38.0",
+    "torch>=2.0.0",
+    "torchaudio>=2.0.0",
+]
+
+# ---------------------------------------------------------------------------
+# Full install: all heavy optional deps
+# Install: pip install -e ".[all]"
+# ---------------------------------------------------------------------------
+all = [
+    "course-generator-agent[pdf-extraction]",
+    "course-generator-agent[ml]",
+]
+
+# macOS-only: Native OCR using Apple Vision framework
+# Install on macOS: pip install -e ".[macos-ocr]"
+macos-ocr = [
+    "ocrmac==1.0.0",  # Only works on macOS, requires pyobjc
+]
+
+# =============================================================================
+# SYSTEM DEPENDENCIES (not Python packages)
+# =============================================================================
+# PDF Book Generation requires LaTeX:
+#   macOS:   brew install --cask basictex  (or mactex for full install)
+#   Ubuntu:  sudo apt-get install texlive-latex-base texlive-fonts-recommended texlive-latex-extra biber
+#   Windows: Install MiKTeX from https://miktex.org/download
+# After install, run: eval "$(/usr/libexec/path_helper)" or restart terminal
+# =============================================================================
+
+# Coqui TTS - INCOMPATIBLE with docling (requires pandas<2.0)
+# Install separately if needed: pip install TTS==0.22.0
+# Note: This will downgrade pandas and break docling
+coqui-tts = [
+    "TTS==0.22.0",
+]
+
+# ---------------------------------------------------------------------------
+# Qwen3-TTS — local GPU TTS with 9 built-in voices + voice cloning (~1.7B)
+# Install: pip install -e ".[qwen-tts]"
+# ---------------------------------------------------------------------------
+qwen-tts = [
+    "qwen-tts>=0.1.1",
+    "soundfile",
+]
+
+# Optional dependencies for alternative rendering methods
+rendering = [
+    "pyppeteer",
+]
+
+# Optional dependencies for evaluation
+evaluation = [
+    "textstat==0.7.11",
+    "langdetect==1.0.9",
+    "nltk==3.9.2",
+    "sentence-transformers==5.1.2",
+]
+
+[tool.setuptools.packages.find]
+include = ["agents*", "workflows*", "tools*", "evaluators*", "evaluation*"]
