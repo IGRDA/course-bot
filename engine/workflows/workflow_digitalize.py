@@ -195,9 +195,9 @@ Examples:
     # --- Podcast options ---
     pod = parser.add_argument_group("podcast options")
     pod.add_argument(
-        "--tts-engine", default="edge",
-        choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts"],
-        help="TTS engine (default: edge)",
+        "--tts-engine", default="qwen_tts_api",
+        choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"],
+        help="TTS engine (default: qwen_tts_api)",
     )
     pod.add_argument("--target-words", type=int, default=600, help="Words per podcast episode (default: 600)")
 

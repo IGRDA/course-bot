@@ -11,11 +11,11 @@ from .base_engine import BaseTTSEngine
 
 # Available engine types
 EngineType = Literal[
-"edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts"]
+"edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"]
 
 
 def create_tts_engine(
-    engine: EngineType = "edge",
+    engine: EngineType = "qwen_tts_api",
     language: str = "en",
     speaker_map: Optional[dict[str, str]] = None,
     **kwargs,
@@ -104,10 +104,19 @@ def create_tts_engine(
             temperature=kwargs.get("temperature", 0.7),
             speed=kwargs.get("speed", 1.0),
         )
+    elif engine == "qwen_tts_api":
+        from .qwen_tts_api.client import QwenTTSApiEngine
+        return QwenTTSApiEngine(
+            language=language,
+            speaker_map=speaker_map,
+            api_key=kwargs.get("api_key"),
+            api_url=kwargs.get("api_url"),
+            concurrency=kwargs.get("concurrency", 10),
+        )
     else:
         available = [
             "edge", "coqui", "chatterbox", "elevenlabs", "openai_tts",
-            "qwen_tts", "mlx_tts",
+            "qwen_tts", "mlx_tts", "qwen_tts_api",
         ]
         raise ValueError(f"Unknown engine '{engine}'. Available: {available}")
 
@@ -179,6 +188,12 @@ def get_engine_info(engine: EngineType) -> dict:
             "requires_internet": False,
             "languages": ["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
         },
+        "qwen_tts_api": {
+            "name": "Qwen TTS API",
+            "description": "Remote Qwen TTS gateway API - voice cloning, parallel synthesis, requires GCLOUD_GATEWAY_API_KEY",
+            "requires_internet": True,
+            "languages": ["es", "en", "fr", "de", "it", "pt", "zh", "ja", "ko"],
+        },
     }
     
     if engine not in info:
@@ -201,5 +216,6 @@ def list_engines() -> list[dict]:
         {"engine": "openai_tts", **get_engine_info("openai_tts")},
         {"engine": "qwen_tts", **get_engine_info("qwen_tts")},
         {"engine": "mlx_tts", **get_engine_info("mlx_tts")},
+        {"engine": "qwen_tts_api", **get_engine_info("qwen_tts_api")},
     ]
 

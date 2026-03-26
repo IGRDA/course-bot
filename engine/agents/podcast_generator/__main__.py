@@ -60,9 +60,9 @@ Examples:
     parser.add_argument(
         "--tts-engine", "-t",
         type=str,
-        choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts"],
-        default="edge",
-        help="TTS engine to use for audio synthesis (default: edge)",
+        choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"],
+        default="qwen_tts_api",
+        help="TTS engine to use for audio synthesis (default: qwen_tts_api)",
     )
     parser.add_argument(
         "--skip-tts",

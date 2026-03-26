@@ -424,6 +424,24 @@ def generate_podcasts_node(state: CourseState, config: Optional[RunnableConfig] 
                 intro_fade_ms=5000,
                 outro_fade_ms=5000,
             )
+        elif tts_engine == "qwen_tts_api":
+            from tools.podcast import generate_podcast_qwen_tts_api
+
+            generate_podcast_qwen_tts_api(
+                conversation=conversation,
+                output_path=str(audio_path),
+                language=tts_language,
+                speaker_map=speaker_map,
+                title=f"Module {module_idx + 1}: {module.title}",
+                artist="Adinhub",
+                album=state.title,
+                track_number=module_idx + 1,
+                music_path=music_path_str,
+                intro_duration_ms=10000,
+                outro_duration_ms=10000,
+                intro_fade_ms=5000,
+                outro_fade_ms=5000,
+            )
         else:
             from tools.podcast import generate_podcast
             

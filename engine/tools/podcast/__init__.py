@@ -90,6 +90,16 @@ def __getattr__(name: str):
         }
         return _map[name]
 
+    # Qwen TTS API exports
+    if name in ("QwenTTSApiEngine", "generate_podcast_qwen_tts_api", "QWEN_TTS_API_VOICE_MAP"):
+        from .qwen_tts_api.client import QWEN_TTS_API_VOICE_MAP, QwenTTSApiEngine, generate_podcast_qwen_tts_api
+        _map = {
+            "QwenTTSApiEngine": QwenTTSApiEngine,
+            "generate_podcast_qwen_tts_api": generate_podcast_qwen_tts_api,
+            "QWEN_TTS_API_VOICE_MAP": QWEN_TTS_API_VOICE_MAP,
+        }
+        return _map[name]
+
     # MLX TTS exports
     if name in ("MLXTTSEngine", "generate_podcast_mlx_tts"):
         from .mlx_tts.client import MLXTTSEngine, generate_podcast_mlx_tts
@@ -146,6 +156,10 @@ __all__ = [
     # Qwen TTS Engine
     "QwenTTSEngine",
     "generate_podcast_qwen_tts",
+    # Qwen TTS API Engine
+    "QwenTTSApiEngine",
+    "generate_podcast_qwen_tts_api",
+    "QWEN_TTS_API_VOICE_MAP",
     # MLX TTS Engine
     "MLXTTSEngine",
     "generate_podcast_mlx_tts",

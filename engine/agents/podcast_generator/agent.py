@@ -14,7 +14,7 @@ from .prompts import conversation_prompt
 
 
 # TTS Engine types
-TTSEngineType = Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts"]
+TTSEngineType = Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"]
 
 # Language mapping from course language to TTS language code
 LANGUAGE_MAP = {
@@ -261,7 +261,7 @@ def generate_module_podcast(
     provider: Optional[str] = None,
     target_words: int = 600,
     skip_tts: bool = False,
-    tts_engine: TTSEngineType = "edge",
+    tts_engine: TTSEngineType = "qwen_tts_api",
     speaker_map: Optional[dict[str, str]] = None,
     tts_kwargs: Optional[dict] = None,
 ) -> dict:
@@ -298,7 +298,7 @@ def generate_module_podcast(
     output_path.mkdir(parents=True, exist_ok=True)
     
     # Generate conversation
-    engine_names = {"edge": "Edge TTS", "coqui": "Coqui TTS", "elevenlabs": "ElevenLabs", "chatterbox": "Chatterbox TTS", "openai_tts": "OpenAI TTS", "qwen_tts": "Qwen3-TTS", "mlx_tts": "MLX Qwen3-TTS"}
+    engine_names = {"edge": "Edge TTS", "coqui": "Coqui TTS", "elevenlabs": "ElevenLabs", "chatterbox": "Chatterbox TTS", "openai_tts": "OpenAI TTS", "qwen_tts": "Qwen3-TTS", "mlx_tts": "MLX Qwen3-TTS", "qwen_tts_api": "Qwen TTS API"}
     engine_name = engine_names.get(tts_engine, tts_engine)
     print(f"🎙️ Generating podcast conversation for module {module_idx + 1} ({engine_name})...")
     
@@ -381,6 +381,10 @@ def generate_module_podcast(
             from tools.podcast import generate_podcast_mlx_tts
             extra = tts_kwargs or {}
             tts_result = generate_podcast_mlx_tts(**common_kwargs, **extra)
+        elif tts_engine == "qwen_tts_api":
+            from tools.podcast import generate_podcast_qwen_tts_api
+            extra = tts_kwargs or {}
+            tts_result = generate_podcast_qwen_tts_api(**common_kwargs, **extra)
         else:
             from tools.podcast import generate_podcast
             tts_result = generate_podcast(**common_kwargs)

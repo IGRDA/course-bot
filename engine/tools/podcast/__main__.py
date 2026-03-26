@@ -87,9 +87,9 @@ Examples:
     parser.add_argument(
         "--engine", "-e",
         type=str,
-        default="edge",
-        choices=["edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts"],
-        help="TTS engine to use. 'edge' (default) is fast and online, 'coqui' works offline, 'mlx_tts' for Apple Silicon."
+        default="qwen_tts_api",
+        choices=["edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"],
+        help="TTS engine to use. 'qwen_tts_api' (default) uses the remote voice-cloning API, 'edge' is fast and online, 'coqui' works offline."
     )
     
     parser.add_argument(

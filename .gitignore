@@ -228,6 +228,7 @@ migration/
 MIGRATION_SECRETS.md
 
 # Example courses
+examples*
 curso_*/
 
 # Large audio (use mp3 or LFS if needed)
