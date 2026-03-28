@@ -190,7 +190,7 @@ def get_engine_info(engine: EngineType) -> dict:
         },
         "qwen_tts_api": {
             "name": "Qwen TTS API",
-            "description": "Remote Qwen TTS gateway API - voice cloning, parallel synthesis, requires GCLOUD_GATEWAY_API_KEY",
+            "description": "Remote Qwen TTS gateway API - voice cloning, parallel synthesis, requires CLOUD_GATEWAY_API_KEY",
             "requires_internet": True,
             "languages": ["es", "en", "fr", "de", "it", "pt", "zh", "ja", "ko"],
         },

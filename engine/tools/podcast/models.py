@@ -5,7 +5,7 @@ Defines the structure for conversation messages used in TTS synthesis.
 """
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Union, Optional
 
 
 @dataclass
@@ -81,9 +81,9 @@ class LanguageConfig:
         is_multilingual: Whether this config uses the multilingual XTTS model
     """
     model_name: str
-    speakers: list[str | int]
-    default_speaker_map: dict[str, str | int]
-    language_code: str | None = None
+    speakers: list[Union[str, int]]
+    default_speaker_map: dict[str, Union[str, int]]
+    language_code: Optional[str] = None
     is_multilingual: bool = False
 
 

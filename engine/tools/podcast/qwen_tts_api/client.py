@@ -2,16 +2,18 @@
 Qwen TTS API Engine for podcast generation.
 
 Calls a remote Qwen TTS gateway API (voice cloning) to synthesize speech.
-Messages are synthesized in parallel using a ThreadPoolExecutor to mitigate
-the latency of each individual API call.
+Messages are grouped by speaker and sent in batch API calls to avoid Lambda
+concurrency limits. The server processes all texts in a single GPU call.
 
-Requires GCLOUD_GATEWAY_API_KEY environment variable (or api_key parameter).
+Requires CLOUD_GATEWAY_API_KEY environment variable (or api_key parameter).
 """
 
+import io
 import os
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import zipfile
+from collections import defaultdict
 from pathlib import Path
 from typing import Optional
 
@@ -19,10 +21,10 @@ from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
 
 
-# Remote gateway endpoint
-QWEN_TTS_API_URL = "https://tts-gateway-5d7aw0jj.uk.gateway.dev/generate-clone"
+# Remote Lambda Function URL endpoint
+QWEN_TTS_API_URL = "https://noyr5xagtj2ofkqq3eef7knha40lsogm.lambda-url.eu-west-1.on.aws"
 
-# Default voice profile names per language (same profiles work for all languages)
+# Default voice profile names per language (pre-computed voice clones)
 QWEN_TTS_API_VOICE_MAP: dict[str, dict[str, str]] = {
     "es": {"host": "adrian", "guest": "teresa"},
     "en": {"host": "adrian", "guest": "teresa"},
@@ -48,9 +50,10 @@ QWEN_TTS_API_LANGUAGES: dict[str, str] = {
     "ko": "Korean",
 }
 
-DEFAULT_CONCURRENCY = 10
-MAX_RETRIES = 5
-RETRY_BACKOFF_BASE = 3.0  # seconds
+DEFAULT_CONCURRENCY = 20  # max texts per batch API call (one Lambda invocation)
+MAX_BATCH_SIZE = 20       # hard cap matching server-side MAX_BATCH_SIZE
+MAX_RETRIES = 6
+RETRY_BACKOFF_BASE = 5.0  # seconds — gives GPU queue time to drain on timeout
 
 
 class QwenTTSApiEngine(BaseTTSEngine):
@@ -60,7 +63,7 @@ class QwenTTSApiEngine(BaseTTSEngine):
     All messages in a conversation are sent to the API in parallel
     (up to ``concurrency`` requests at once) to minimize total latency.
 
-    Requires the GCLOUD_GATEWAY_API_KEY environment variable or the
+    Requires the CLOUD_GATEWAY_API_KEY environment variable or the
     ``api_key`` constructor parameter.
     """
 
@@ -77,16 +80,16 @@ class QwenTTSApiEngine(BaseTTSEngine):
         Args:
             language: Language code (es, en, fr, de, it, pt, zh, ja, ko)
             speaker_map: Mapping of role names to API profile_name values
-            api_key: GCloud gateway API key (falls back to GCLOUD_GATEWAY_API_KEY env var)
+            api_key: GCloud gateway API key (falls back to CLOUD_GATEWAY_API_KEY env var)
             api_url: Override the default API endpoint URL
             concurrency: Maximum number of parallel API requests (default: 10)
         """
         super().__init__(language=language, speaker_map=speaker_map)
 
-        self.api_key = api_key or os.environ.get("GCLOUD_GATEWAY_API_KEY")
+        self.api_key = api_key or os.environ.get("CLOUD_GATEWAY_API_KEY")
         if not self.api_key:
             raise ValueError(
-                "Qwen TTS API key required. Set GCLOUD_GATEWAY_API_KEY env var "
+                "Qwen TTS API key required. Set CLOUD_GATEWAY_API_KEY env var "
                 "or pass api_key parameter."
             )
 
@@ -145,12 +148,18 @@ class QwenTTSApiEngine(BaseTTSEngine):
 
         payload = {
             "text": message.content,
-            "profile_name": profile_name,
             "language": language_str,
         }
+
+        # The new API supports either profile_name (cloned) or speaker (built-in)
+        if hasattr(message, "speaker") and message.speaker:
+            payload["speaker"] = message.speaker
+        else:
+            payload["profile_name"] = profile_name
         headers = {
             "x-api-key": self.api_key,
             "Content-Type": "application/json",
+            "Accept": "audio/wav",
         }
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
@@ -159,11 +168,11 @@ class QwenTTSApiEngine(BaseTTSEngine):
         for attempt in range(MAX_RETRIES):
             try:
                 response = requests.post(
-                    self.api_url,
+                    f"{self.api_url.rstrip('/')}/generate-clone",
                     json=payload,
                     headers=headers,
                     stream=True,
-                    timeout=300,
+                    timeout=300,  # 300s: covers cold-start + full GPU batch
                 )
                 response.raise_for_status()
 
@@ -177,13 +186,80 @@ class QwenTTSApiEngine(BaseTTSEngine):
             except Exception as exc:
                 last_exc = exc
                 if attempt < MAX_RETRIES - 1:
-                    wait = RETRY_BACKOFF_BASE ** attempt
-                    print(f"   ⚠️ API error (attempt {attempt + 1}/{MAX_RETRIES}): {exc} — retrying in {wait:.1f}s")
+                    # Detect server-side timeout / overload (500, 502, 503)
+                    # and apply a longer wait to let the GPU queue drain.
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    if status in (500, 502, 503):
+                        # Server timeout — wait longer so the queue drains
+                        wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                    elif status == 429:
+                        # Lambda concurrency cap hit — back off hard
+                        wait = RETRY_BACKOFF_BASE * (3 ** attempt)
+                    else:
+                        wait = RETRY_BACKOFF_BASE ** attempt
+                    wait = min(wait, 120)  # cap at 2 minutes
+                    print(
+                        f"   ⚠️ API error (attempt {attempt + 1}/{MAX_RETRIES}, "
+                        f"HTTP {status or 'N/A'}): {exc} — retrying in {wait:.1f}s"
+                    )
                     time.sleep(wait)
 
         raise RuntimeError(
             f"Failed to synthesize message after {MAX_RETRIES} attempts: {last_exc}"
         )
+
+    def _send_batch(self, texts: list[str], profile_name: str, lang: str) -> list[bytes]:
+        """Send a batch of texts for one speaker and return WAV bytes in order."""
+        import requests
+
+        payload = {
+            "text": texts if len(texts) > 1 else texts[0],
+            "language": lang,
+            "profile_name": profile_name,
+        }
+        headers = {"x-api-key": self.api_key, "Content-Type": "application/json"}
+
+        last_exc = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = requests.post(
+                    f"{self.api_url.rstrip('/')}/generate-clone",
+                    json=payload,
+                    headers=headers,
+                    timeout=300,
+                )
+                response.raise_for_status()
+
+                if len(texts) == 1:
+                    return [response.content]
+
+                with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+                    # Sort numerically: output_1.wav < output_10.wav
+                    names = sorted(
+                        zf.namelist(),
+                        key=lambda n: int(n.split("_")[1].split(".")[0]),
+                    )
+                    return [zf.read(name) for name in names]
+
+            except Exception as exc:
+                last_exc = exc
+                if attempt < MAX_RETRIES - 1:
+                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                    if status in (500, 502, 503):
+                        wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                    elif status == 429:
+                        wait = RETRY_BACKOFF_BASE * (3 ** attempt)
+                    else:
+                        wait = RETRY_BACKOFF_BASE ** attempt
+                    
+                    wait = min(wait, 120)
+                    print(
+                        f"   ⚠️ Batch API error (attempt {attempt + 1}/{MAX_RETRIES}, "
+                        f"HTTP {status or 'N/A'}, {len(texts)} texts): {exc} — retrying in {wait:.1f}s"
+                    )
+                    time.sleep(wait)
+
+        raise RuntimeError(f"Batch failed after {MAX_RETRIES} attempts: {last_exc}")
 
     def synthesize_conversation(
         self,
@@ -195,9 +271,9 @@ class QwenTTSApiEngine(BaseTTSEngine):
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
-        All messages are sent to the API in parallel (up to ``self.concurrency``
-        simultaneous requests). Results are assembled in order after all futures
-        complete, then concatenated with silence gaps.
+        Groups messages by speaker and sends each group as ONE batch API call,
+        bypassing Lambda concurrency limits. The server processes all texts in a
+        single GPU call and returns a ZIP of WAV files.
 
         Args:
             conversation: Conversation to synthesize
@@ -213,37 +289,34 @@ class QwenTTSApiEngine(BaseTTSEngine):
             raise ValueError("Conversation cannot be empty")
 
         import wave
-        import struct
         import subprocess
-
         total = len(conversation)
         self.segment_durations_ms = [None] * total
+        lang = QWEN_TTS_API_LANGUAGES.get(language_code, self.language_str) if language_code else self.language_str
 
         with tempfile.TemporaryDirectory(prefix="qwen_tts_api_") as temp_dir:
-            # Map index -> temp path
             temp_paths = [
                 os.path.join(temp_dir, f"segment_{idx:04d}.wav")
                 for idx in range(total)
             ]
 
+            # Group message indices by speaker profile so each batch uses one voice.
+            groups: dict[str, list[int]] = defaultdict(list)
+            for idx, msg in enumerate(conversation.messages):
+                groups[self.get_speaker_for_role(msg.role)].append(idx)
+
             completed_count = 0
+            batch_size = min(self.concurrency, MAX_BATCH_SIZE)
 
-            def _synthesize_one(idx: int) -> int:
-                self.synthesize_message(
-                    message=conversation.messages[idx],
-                    output_path=temp_paths[idx],
-                    language_code=language_code,
-                )
-                return idx
-
-            with ThreadPoolExecutor(max_workers=self.concurrency) as executor:
-                futures = {
-                    executor.submit(_synthesize_one, idx): idx
-                    for idx in range(total)
-                }
-                for future in as_completed(futures):
-                    idx = future.result()  # raises if synthesis failed
-                    completed_count += 1
+            for profile_name, indices in groups.items():
+                for batch_start in range(0, len(indices), batch_size):
+                    batch_indices = indices[batch_start:batch_start + batch_size]
+                    texts = [conversation.messages[i].content for i in batch_indices]
+                    wav_bytes_list = self._send_batch(texts, profile_name, lang)
+                    for i, wav_bytes in enumerate(wav_bytes_list):
+                        with open(temp_paths[batch_indices[i]], "wb") as f:
+                            f.write(wav_bytes)
+                    completed_count += len(batch_indices)
                     if progress_callback:
                         progress_callback(completed_count, total)
 
@@ -306,16 +379,30 @@ class QwenTTSApiEngine(BaseTTSEngine):
         return str(output_path)
 
     @classmethod
-    def list_available_voices(cls, language: str = "es") -> list[str]:
-        """List the known default voice profiles.
+    def list_available_voices(cls, language: str = "es", api_key: Optional[str] = None) -> list[str]:
+        """List the available voice profiles from the API.
 
         Args:
-            language: Language code (unused — same profiles work for all languages)
+            language: Language code (unused)
+            api_key: Optional API key override
 
         Returns:
             List of profile_name strings
         """
-        return ["adrian", "teresa"]
+        import requests
+
+        key = api_key or os.environ.get("CLOUD_GATEWAY_API_KEY")
+        try:
+            response = requests.get(
+                f"{QWEN_TTS_API_URL.rstrip('/')}/profiles",
+                headers={"x-api-key": key},
+                timeout=60,  # Increased to 60 seconds
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            print(f"   ⚠️ Failed to fetch dynamic profiles: {e} — falling back to defaults")
+            return ["adrian", "teresa", "xuban-berasategui"]
 
 
 def _get_ffmpeg_exe() -> str:
@@ -434,7 +521,7 @@ def generate_podcast_qwen_tts_api(
         speaker_map: Optional mapping of roles to API profile_name values
         silence_duration_ms: Silence between messages in milliseconds
         progress_callback: Optional callback(current, total)
-        api_key: Gateway API key (falls back to GCLOUD_GATEWAY_API_KEY env var)
+        api_key: Gateway API key (falls back to CLOUD_GATEWAY_API_KEY env var)
         api_url: Override the default gateway endpoint URL
         concurrency: Max parallel API requests (default: 10)
         title: Podcast title for metadata

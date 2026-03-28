@@ -9,6 +9,7 @@ langchain_google_genai, etc.) are only loaded when actually requested.
 """
 
 import os
+from typing import Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -81,7 +82,7 @@ def create_text_llm(provider: str, **kwargs) -> BaseChatModel:
     return builder(**kwargs)
 
 
-def resolve_text_model_name(provider: str) -> str | None:
+def resolve_text_model_name(provider: str) -> Optional[str]:
     """
     Return the provider-specific model name from environment variable.
     
