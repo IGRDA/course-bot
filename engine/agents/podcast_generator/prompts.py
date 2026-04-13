@@ -30,7 +30,7 @@ Your task is to write a natural conversation between a HOST and a GUEST discussi
    - Expand acronyms on first use, then use spoken form (e.g., "AI, or Artificial Intelligence" then "A.I." with periods, or spell out "NASA" as "na-sa" if commonly spoken)
    - For abbreviations, write them as spoken: "Dr." → "Doctor", "etc." → "etcetera", "e.g." → "for example"
    - Avoid symbols TTS may mispronounce: use "and" not "&", "at" not "@", "dollars" not "$"
-   
+
 4. **Punctuation for natural flow and pacing**
    - Use commas to create brief pauses where a speaker would naturally breathe
    - Use periods for full stops; avoid run-on sentences
@@ -93,7 +93,7 @@ CONVERSATION_USER_PROMPT = """Generate an educational podcast conversation about
 - **Language**: Write the conversation in {language}
 - **Target Length**: {target_words} words total (approximately {num_messages} exchanges)
 - **Style**: Engaging, educational dialogue between HOST and GUEST
-- **Flow**: 
+- **Flow**:
   1. Brief intro/hook
   2. Cover the key concepts from each section
   3. Conclude with main takeaways
@@ -101,7 +101,9 @@ CONVERSATION_USER_PROMPT = """Generate an educational podcast conversation about
 Generate the conversation as a JSON array of messages:"""
 
 # Create the prompt template
-conversation_prompt = ChatPromptTemplate.from_messages([
-    ("system", CONVERSATION_SYSTEM_PROMPT),
-    ("user", CONVERSATION_USER_PROMPT),
-])
+conversation_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", CONVERSATION_SYSTEM_PROMPT),
+        ("user", CONVERSATION_USER_PROMPT),
+    ]
+)

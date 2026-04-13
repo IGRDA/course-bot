@@ -2,15 +2,19 @@
 
 from langchain_core.prompts import ChatPromptTemplate
 
-
 # ---- Video Query Generation Prompt (Legacy - single query) ----
-video_query_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert at creating YouTube search queries for educational content.
+video_query_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert at creating YouTube search queries for educational content.
 Generate a concise search query (4-8 words) that will find relevant educational videos.
 Focus on finding tutorials, explanations, or educational content that matches the module topic.
-Consider the target language when crafting the query - use the appropriate language for better results."""),
-    
-    ("human", """Generate a YouTube search query for educational videos about this module:
+Consider the target language when crafting the query - use the appropriate language for better results.""",
+        ),
+        (
+            "human",
+            """Generate a YouTube search query for educational videos about this module:
 
 Course Title: {course_title}
 Module Title: {module_title}
@@ -19,13 +23,18 @@ Key Topics: {key_topics}
 Target Language: {language}
 
 Generate a search query in {language} that will find educational videos explaining this module's content.
-Return ONLY the search query, nothing else.""")
-])
+Return ONLY the search query, nothing else.""",
+        ),
+    ]
+)
 
 
 # ---- Multi-Query Video Generation Prompt ----
-video_multi_query_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert at creating YouTube search queries for educational content.
+video_multi_query_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert at creating YouTube search queries for educational content.
 Your task is to generate multiple short search queries that will find highly relevant educational videos.
 
 You must generate:
@@ -55,9 +64,11 @@ Output your response as valid JSON with this exact structure:
 {{
   "general_query": "module theme tutorial",
   "specific_queries": ["concept one explicado", "concept two tutorial"]
-}}"""),
-
-    ("human", """Generate YouTube search queries for educational videos about this module:
+}}""",
+        ),
+        (
+            "human",
+            """Generate YouTube search queries for educational videos about this module:
 
 Course Title: {course_title}
 Module Title: {module_title}
@@ -70,6 +81,7 @@ Number of specific queries needed: {num_specific_queries}
 
 Remember: each query MUST be 3-6 words, written like a real YouTube search. No long academic phrases.
 
-Return ONLY the JSON object, no additional text.""")
-])
-
+Return ONLY the JSON object, no additional text.""",
+        ),
+    ]
+)

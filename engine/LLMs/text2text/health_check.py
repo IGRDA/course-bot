@@ -16,7 +16,6 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
-
 from LLMs.api_keys import _load_all_keys_from_secrets, mask_key
 
 PROVIDER_REGISTRY: dict[str, dict] = {
@@ -57,6 +56,7 @@ PROVIDER_REGISTRY: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 # Per-format health check probes
 # ---------------------------------------------------------------------------
+
 
 def _check_key_openai(key: str, base_url: str, model: str, timeout: float) -> int:
     """POST /chat/completions with max_tokens=1 (Mistral, OpenAI, Groq, DeepSeek)."""
@@ -111,6 +111,7 @@ _CHECK_DISPATCH = {
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def validate_provider_keys(
     provider: str,
     timeout: float = 15.0,
@@ -149,24 +150,18 @@ def validate_provider_keys(
 
     model = os.getenv(model_env_var) or default_model
     if not model:
-        raise RuntimeError(
-            f"{model_env_var} environment variable must be set for health check"
-        )
+        raise RuntimeError(f"{model_env_var} environment variable must be set for health check")
 
     check_fn = _CHECK_DISPATCH[api_format]
 
-    print(f"\n[APICheck] Testing {len(all_keys)} key(s) from {env_var} "
-          f"(provider: {provider}, model: {model})...")
+    print(f"\n[APICheck] Testing {len(all_keys)} key(s) from {env_var} (provider: {provider}, model: {model})...")
 
     status_counts: Counter = Counter()
     healthy: list[str] = []
     results: dict[str, int] = {}
 
     with ThreadPoolExecutor(max_workers=len(all_keys)) as pool:
-        futures = {
-            pool.submit(check_fn, k, base_url, model, timeout): k
-            for k in all_keys
-        }
+        futures = {pool.submit(check_fn, k, base_url, model, timeout): k for k in all_keys}
         for future in as_completed(futures):
             key = futures[future]
             results[key] = future.result()
@@ -184,8 +179,7 @@ def validate_provider_keys(
 
     if not healthy:
         raise RuntimeError(
-            f"All {len(all_keys)} {provider} API keys failed health check. "
-            f"Distribution: {dict(status_counts)}"
+            f"All {len(all_keys)} {provider} API keys failed health check. Distribution: {dict(status_counts)}"
         )
 
     os.environ[env_var] = ",".join(healthy)

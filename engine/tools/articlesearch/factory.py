@@ -5,12 +5,13 @@ This module provides a unified interface for academic article/paper search
 across different providers (Semantic Scholar, OpenAlex, arXiv).
 """
 
-from typing import Callable, TypedDict
+from collections.abc import Callable
+from typing import TypedDict
 
 
 class ArticleResult(TypedDict):
     """Structured article result from academic search APIs.
-    
+
     Attributes:
         title: Article/paper title (required)
         authors: List of author names (required)
@@ -24,6 +25,7 @@ class ArticleResult(TypedDict):
         venue: Journal or conference name
         snippet: Short preview text for search results
     """
+
     title: str
     authors: list[str]
     year: int | None
@@ -46,20 +48,22 @@ ARTICLE_SEARCH_PROVIDERS: dict[str, ArticleSearchFunc] = {}
 def _register_providers() -> None:
     """Lazily register all available providers."""
     global ARTICLE_SEARCH_PROVIDERS
-    
+
     if ARTICLE_SEARCH_PROVIDERS:
         return  # Already registered
-    
+
     # Import and register providers
-    from .semanticscholar.client import search_articles as semanticscholar_search
-    from .openalex.client import search_articles as openalex_search
     from .arxiv.client import search_articles as arxiv_search
-    
-    ARTICLE_SEARCH_PROVIDERS.update({
-        "semanticscholar": semanticscholar_search,
-        "openalex": openalex_search,
-        "arxiv": arxiv_search,
-    })
+    from .openalex.client import search_articles as openalex_search
+    from .semanticscholar.client import search_articles as semanticscholar_search
+
+    ARTICLE_SEARCH_PROVIDERS.update(
+        {
+            "semanticscholar": semanticscholar_search,
+            "openalex": openalex_search,
+            "arxiv": arxiv_search,
+        }
+    )
 
 
 def available_article_search_providers() -> list[str]:
@@ -71,32 +75,28 @@ def available_article_search_providers() -> list[str]:
 def create_article_search(provider: str = "semanticscholar") -> ArticleSearchFunc:
     """
     Get article search function for the specified provider.
-    
+
     Args:
         provider: Article search provider name (semanticscholar | openalex | arxiv).
-        
+
     Returns:
         An article search function that accepts (query: str, max_results: int, language: str | None).
-        
+
     Raises:
         ValueError: If provider is not supported.
-        
+
     Example:
         >>> search = create_article_search("semanticscholar")
         >>> results = search("machine learning", max_results=5, language=None)
     """
     _register_providers()
-    
+
     if not provider:
         provider = "semanticscholar"
-    
+
     key = provider.lower()
     try:
         return ARTICLE_SEARCH_PROVIDERS[key]
     except KeyError as exc:
         available = ", ".join(available_article_search_providers())
-        raise ValueError(
-            f"Unsupported article search provider '{provider}'. "
-            f"Available providers: {available}"
-        ) from exc
-
+        raise ValueError(f"Unsupported article search provider '{provider}'. Available providers: {available}") from exc

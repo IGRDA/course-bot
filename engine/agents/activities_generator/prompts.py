@@ -90,8 +90,11 @@ Before outputting, verify that your activities:
 # MAIN ACTIVITIES GENERATION PROMPT
 # ============================================================================
 
-activities_generation_prompt = ChatPromptTemplate.from_messages([
-    ("system", f"""{PEDAGOGY_EXPERT_ROLE}
+activities_generation_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            f"""{PEDAGOGY_EXPERT_ROLE}
 
 {NEUTRALITY_GUIDELINES}
 
@@ -106,9 +109,11 @@ You must generate activities that:
 - Follow exact format specifications for each activity type
 
 Be creative and educational, but follow the required formats precisely.
-Avoid LaTeX notation in JSON strings - use plain text or Unicode symbols (ℏ, ψ, Ψ, α, β, γ, δ, Δ, π, Σ, ∫, ∂, →, ≠, ≤, ≥, ∞)."""),
-    
-    ("human", """Analyze this theory text and generate educational activities:
+Avoid LaTeX notation in JSON strings - use plain text or Unicode symbols (ℏ, ψ, Ψ, α, β, γ, δ, Δ, π, Σ, ∫, ∂, →, ≠, ≤, ≥, ∞).""",
+        ),
+        (
+            "human",
+            """Analyze this theory text and generate educational activities:
 
 =====================================
 THEORY TEXT
@@ -149,55 +154,58 @@ REQUIRED OUTPUTS
 
 5. ACTIVITIES:
    You must generate activities of these types: {activity_types}
-   
+
    IMPORTANT: Use plain text only in ALL activity content - NO markdown formatting (no *, **, _, ~, or other markup).
-   
+
    Activity Format Specifications:
-   
+
    - **order_list**: Sequence ordering activity
      Format: {{"question": "...", "solution": ["item1", "item2", "item3", ...]}}
      Requirements: At least 2 items, items should be distinct steps or elements
      IMPORTANT: Do NOT include explicit years or dates in the items - this makes ordering trivial. Focus on conceptual progression.
-   
+
    - **fill_gaps**: Gap-fill completion activity
      Format: {{"question": "Text with *gap* placeholders", "solution": ["word1", "word2", ...]}}
      Requirements: Number of *gap* must equal number of solutions, at least 2 blanks
-     CRITICAL: Do NOT use asterisks (*) for any other purpose in the question text. 
+     CRITICAL: Do NOT use asterisks (*) for any other purpose in the question text.
      The ONLY asterisks should be around the word "gap" to mark blanks (e.g., "The formula is E = *gap*").
      Write variables and symbols in plain text without any formatting (e.g., "E_c", "hν", "φ").
-   
+
    - **swipper**: True/false categorization activity
      Format: {{"question": "Context or instruction", "solution": {{"true": ["stmt1", ...], "false": ["stmt2", ...]}}}}
      Requirements: At least one statement in true or false, statements must be clearly true or false
-   
+
    - **linking_terms**: Matching pairs activity
      Format: {{"question": "Match the concepts", "solution": [{{"concept": "...", "related": "..."}}, ...]}}
      Requirements: At least 2 pairs, concepts and related items must be clearly connected
-   
+
    - **multiple_choice**: Single correct answer activity
      Format: {{"question": "...", "solution": "correct answer", "other_options": ["wrong1", "wrong2", "wrong3"]}}
      Requirements: Solution must NOT appear in other_options, at least 3 other options, no duplicates, all options plausible
-   
+
    - **multi_selection**: Multiple correct answers activity
      Format: {{"question": "...", "solution": ["correct1", "correct2"], "other_options": ["wrong1", "wrong2"]}}
      Requirements: No overlap between solution and other_options, at least 4 total options
 
 6. FINAL ACTIVITIES (PROFUNDIZACIÓN):
    Generate activities of these types: {final_activity_types}
-   
+
    - **group_activity**: Collaborative task for teams to work together
    - **discussion_forum**: Thought-provoking discussion question
    - **individual_project**: Individual project applying knowledge to a real-world scenario
    - **open_ended_quiz**: Open-ended question requiring detailed, thoughtful response
-   
+
    Format: {{"question": "Task or question description"}}
    Requirements: Should encourage critical thinking and application of knowledge
    IMPORTANT: Write as flowing prose. NO markdown (**, *), NO HTML tags (<b>, <i>), NO numbered/lettered lists (1., a., -).
 
 {format_instructions}
 
-""" + ACTIVITY_VERIFICATION)
-])
+"""
+            + ACTIVITY_VERIFICATION,
+        ),
+    ]
+)
 
 
 # ============================================================================
@@ -225,8 +233,11 @@ Before outputting, verify that:
 ✓ Glossary and key concept use PLAIN TEXT ONLY - NO markdown (no *, **, _, ~)
 """
 
-meta_only_prompt = ChatPromptTemplate.from_messages([
-    ("system", f"""{META_ONLY_ROLE}
+meta_only_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            f"""{META_ONLY_ROLE}
 
 {NEUTRALITY_GUIDELINES}
 
@@ -237,9 +248,11 @@ Generate educational metadata that:
 - Is appropriate for the language: {{language}}
 - Follows exact format specifications
 
-Avoid LaTeX notation in JSON strings - use plain text or Unicode symbols (ℏ, ψ, Ψ, α, β, γ, δ, Δ, π, Σ, ∫, ∂, →, ≠, ≤, ≥, ∞)."""),
-    
-    ("human", """Analyze this theory text and generate educational metadata:
+Avoid LaTeX notation in JSON strings - use plain text or Unicode symbols (ℏ, ψ, Ψ, α, β, γ, δ, Δ, π, Σ, ∫, ∂, →, ≠, ≤, ≥, ∞).""",
+        ),
+        (
+            "human",
+            """Analyze this theory text and generate educational metadata:
 
 =====================================
 THEORY TEXT
@@ -280,8 +293,11 @@ REQUIRED OUTPUTS
 
 {format_instructions}
 
-""" + META_ONLY_VERIFICATION)
-])
+"""
+            + META_ONLY_VERIFICATION,
+        ),
+    ]
+)
 
 
 # ============================================================================

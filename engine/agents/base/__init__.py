@@ -6,16 +6,15 @@ including the fan-out/fan-in pattern for parallel section processing.
 """
 
 from .parallel_processor import (
-    SectionTask,
-    SectionProcessorState,
     SectionProcessor,
+    SectionProcessorState,
+    SectionTask,
     build_section_processor_graph,
 )
 
 __all__ = [
-    "SectionTask",
-    "SectionProcessorState",
     "SectionProcessor",
+    "SectionProcessorState",
+    "SectionTask",
     "build_section_processor_graph",
 ]
-

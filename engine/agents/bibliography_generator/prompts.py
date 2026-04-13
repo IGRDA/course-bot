@@ -3,8 +3,11 @@
 from langchain_core.prompts import ChatPromptTemplate
 
 # Prompt for LLM to suggest relevant books for a module
-book_suggestion_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert librarian specializing in academic textbooks and educational resources.
+book_suggestion_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert librarian specializing in academic textbooks and educational resources.
 
 Your task is to suggest REAL, WELL-KNOWN books that can be found in major libraries and bookstores.
 
@@ -36,9 +39,11 @@ Do NOT:
 - Invent fictional books
 - Suggest obscure or self-published books
 - Mix up author names with book titles
-- Suggest books you're not confident exist"""),
-    
-    ("human", """Suggest {num_books} highly-regarded academic books for this module:
+- Suggest books you're not confident exist""",
+        ),
+        (
+            "human",
+            """Suggest {num_books} highly-regarded academic books for this module:
 
 **Course Title:** {course_title}
 **Module Title:** {module_title}
@@ -90,13 +95,18 @@ Example for a Spanish course:
 ]
 ```
 
-Return ONLY the JSON array:""")
-])
+Return ONLY the JSON array:""",
+        ),
+    ]
+)
 
 
 # Prompt for formatting a single book citation in APA 7
-apa_formatting_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert in APA 7th edition citation formatting.
+apa_formatting_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert in APA 7th edition citation formatting.
 
 Format book citations according to APA 7 guidelines:
 
@@ -114,9 +124,11 @@ Author, A. A., & Author, B. B. (Year). Title of work: Capital letter also for su
 **Examples:**
 - Single author: Jackson, L. M. (2019). The psychology of prejudice: From attitudes to social action (2nd ed.). American Psychological Association.
 - Multiple authors: Sapolsky, R. M., & Balt, S. (2020). Behave: The biology of humans at our best and worst. Penguin Books.
-- With DOI: Brown, L. S. (2018). Feminist therapy (2nd ed.). American Psychological Association. https://doi.org/10.1037/0000092-000"""),
-    
-    ("human", """Format this book in APA 7 style:
+- With DOI: Brown, L. S. (2018). Feminist therapy (2nd ed.). American Psychological Association. https://doi.org/10.1037/0000092-000""",
+        ),
+        (
+            "human",
+            """Format this book in APA 7 style:
 
 Title: {title}
 Authors: {authors}
@@ -126,5 +138,7 @@ Edition: {edition}
 DOI: {doi}
 URL: {url}
 
-Return ONLY the formatted citation, nothing else.""")
-])
+Return ONLY the formatted citation, nothing else.""",
+        ),
+    ]
+)

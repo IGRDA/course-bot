@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -21,7 +22,7 @@ from pathlib import Path
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-from bot.conversation.types import ConversationRequest, WorkspaceInfo
+from bot.conversation.types import WorkspaceInfo
 from bot.internal.claude_client import ClaudeClient
 from bot.internal.platform import SlackPlatform
 from bot.internal.slack_service import SlackService
@@ -30,6 +31,7 @@ from bot.workspace.manager import WorkspaceManager
 # ---------------------------------------------------------------------------
 # GCP-friendly structured JSON logging (same as main.py)
 # ---------------------------------------------------------------------------
+
 
 class _GCPFormatter(logging.Formatter):
     """Emit one JSON object per log line using Cloud Logging severity names."""
@@ -57,7 +59,8 @@ class _GCPFormatter(logging.Formatter):
         thread_key = os.environ.get("JOB_THREAD_KEY", "")
         if thread_key:
             log_entry.setdefault(
-                "logging.googleapis.com/labels", {},
+                "logging.googleapis.com/labels",
+                {},
             )["thread_key"] = thread_key
         if record.exc_info and record.exc_info[0] is not None:
             log_entry["exception"] = self.formatException(record.exc_info)
@@ -85,6 +88,7 @@ CLAIM_EMOJI = "hourglass_flowing_sand"
 # Core processing
 # ---------------------------------------------------------------------------
 
+
 async def _process_event(event: dict) -> None:
     """Run the full Slack event processing pipeline."""
     slack_token = os.environ["SLACK_BOT_TOKEN"]
@@ -99,12 +103,16 @@ async def _process_event(event: dict) -> None:
             logger.warning("Could not resolve bot user ID", exc_info=True)
 
     repo_url = os.environ.get("REPO_URL", "")
-    workspace_manager = WorkspaceManager(
-        repo_url=repo_url,
-        base_dir=os.environ.get("WORKSPACE_BASE_DIR", "/tmp"),
-        default_branch=os.environ.get("DEFAULT_BRANCH", "main"),
-        image_source_dir=os.environ.get("IMAGE_SOURCE_DIR", "/app"),
-    ) if repo_url else None
+    workspace_manager = (
+        WorkspaceManager(
+            repo_url=repo_url,
+            base_dir=os.environ.get("WORKSPACE_BASE_DIR", "/tmp"),
+            default_branch=os.environ.get("DEFAULT_BRANCH", "main"),
+            image_source_dir=os.environ.get("IMAGE_SOURCE_DIR", "/app"),
+        )
+        if repo_url
+        else None
+    )
 
     agent_dir = os.environ.get(
         "CLAUDE_AGENT_DIR",
@@ -146,6 +154,7 @@ async def _process_event(event: dict) -> None:
 
         if event_type == "app_mention":
             import re
+
             pattern = rf"<@{re.escape(bot_user_id)}>\s*"
             text = re.sub(pattern, "", event.get("text", ""), count=1).strip()
         else:
@@ -187,15 +196,14 @@ def _release_claim(client: WebClient, channel: str, ts: str) -> None:
     """Remove the hourglass reaction (best-effort)."""
     if not channel or not ts:
         return
-    try:
+    with contextlib.suppress(SlackApiError):
         client.reactions_remove(channel=channel, timestamp=ts, name=CLAIM_EMOJI)
-    except SlackApiError:
-        pass
 
 
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     _setup_logging()

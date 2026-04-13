@@ -5,12 +5,11 @@ Converts course.json to professional academic PDF books via LaTeX.
 """
 
 from .generator import generate_pdf_book
-from .utils import escape_latex, download_image, generate_bibtex
+from .utils import download_image, escape_latex, generate_bibtex
 
 __all__ = [
-    "generate_pdf_book",
+    "download_image",
     "escape_latex",
-    "download_image", 
     "generate_bibtex",
+    "generate_pdf_book",
 ]
-

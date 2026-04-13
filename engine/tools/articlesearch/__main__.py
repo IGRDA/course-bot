@@ -13,9 +13,9 @@ import json
 import sys
 
 from .factory import (
-    create_article_search,
-    available_article_search_providers,
     ArticleResult,
+    available_article_search_providers,
+    create_article_search,
 )
 
 
@@ -26,27 +26,27 @@ def format_article(article: ArticleResult, index: int) -> str:
         f"   Authors: {', '.join(article['authors'][:4])}{'...' if len(article['authors']) > 4 else ''}",
         f"   Year: {article['year'] or 'N/A'}",
     ]
-    
-    if article['citation_count'] is not None:
+
+    if article["citation_count"] is not None:
         lines.append(f"   Citations: {article['citation_count']}")
-    
-    if article['venue']:
+
+    if article["venue"]:
         lines.append(f"   Venue: {article['venue']}")
-    
-    if article['language']:
+
+    if article["language"]:
         lines.append(f"   Language: {article['language']}")
-    
-    if article['doi']:
+
+    if article["doi"]:
         lines.append(f"   DOI: {article['doi']}")
-    
+
     lines.append(f"   URL: {article['url']}")
     lines.append(f"   Source: {article['source']}")
-    
-    if article['snippet']:
+
+    if article["snippet"]:
         # Truncate snippet for display
-        snippet = article['snippet'][:150] + "..." if len(article['snippet'] or "") > 150 else article['snippet']
+        snippet = article["snippet"][:150] + "..." if len(article["snippet"] or "") > 150 else article["snippet"]
         lines.append(f"   Snippet: {snippet}")
-    
+
     return "\n".join(lines)
 
 
@@ -62,24 +62,24 @@ def search_single_provider(
     if language:
         print(f"   Language filter: {language}")
     print("-" * 60)
-    
+
     try:
         search_fn = create_article_search(provider)
         results = search_fn(query, max_results, language)
-        
+
         if not results:
             print(f"   No results found from {provider}")
             return []
-        
+
         if output_json:
             print(json.dumps(results, indent=2, ensure_ascii=False))
         else:
             for i, article in enumerate(results, 1):
                 print(format_article(article, i))
-        
+
         print(f"\n   ✓ Found {len(results)} results from {provider}")
         return results
-        
+
     except Exception as e:
         print(f"   ❌ Error searching {provider}: {e}")
         return []
@@ -94,24 +94,22 @@ def search_all_providers(
     """Search across all available providers."""
     all_results: list[ArticleResult] = []
     providers = available_article_search_providers()
-    
+
     print(f"\n🔍 Searching all providers ({', '.join(providers)}) for: '{query}'")
     if language:
         print(f"   Language filter: {language}")
     print("=" * 60)
-    
+
     for provider in providers:
-        results = search_single_provider(
-            query, provider, max_results, language, output_json=False
-        )
+        results = search_single_provider(query, provider, max_results, language, output_json=False)
         all_results.extend(results)
-    
+
     print("\n" + "=" * 60)
     print(f"📊 SUMMARY: Found {len(all_results)} total results across {len(providers)} providers")
-    
+
     if output_json:
         print("\n" + json.dumps(all_results, indent=2, ensure_ascii=False))
-    
+
     return all_results
 
 
@@ -128,57 +126,60 @@ Examples:
     python -m tools.articlesearch "deep learning" --provider all --json
         """,
     )
-    
+
     parser.add_argument(
         "query",
         nargs="?",
         help="Search query string",
     )
-    
+
     parser.add_argument(
-        "--provider", "-p",
-        choices=["all"] + available_article_search_providers(),
+        "--provider",
+        "-p",
+        choices=["all", *available_article_search_providers()],
         default="semanticscholar",
         help="Search provider to use (default: semanticscholar)",
     )
-    
+
     parser.add_argument(
-        "--max-results", "-n",
+        "--max-results",
+        "-n",
         type=int,
         default=5,
         help="Maximum number of results per provider (default: 5)",
     )
-    
+
     parser.add_argument(
-        "--language", "-l",
-        help="Filter by language (ISO 639-1 code, e.g., 'en', 'es', 'fr'). "
-             "Only supported by OpenAlex.",
+        "--language",
+        "-l",
+        help="Filter by language (ISO 639-1 code, e.g., 'en', 'es', 'fr'). Only supported by OpenAlex.",
     )
-    
+
     parser.add_argument(
-        "--json", "-j",
+        "--json",
+        "-j",
         action="store_true",
         dest="output_json",
         help="Output results as JSON",
     )
-    
+
     parser.add_argument(
         "--list-providers",
         action="store_true",
         help="List available providers and exit",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.list_providers:
         print("Available article search providers:")
         for provider in available_article_search_providers():
             print(f"  - {provider}")
         return 0
-    
+
     if not args.query:
         parser.error("query is required when not using --list-providers")
-    
+
     if args.provider == "all":
         results = search_all_providers(
             args.query,
@@ -194,10 +195,9 @@ Examples:
             args.language,
             args.output_json,
         )
-    
+
     return 0 if results else 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

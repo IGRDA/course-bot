@@ -7,6 +7,7 @@ Imports are lazy so that mlx/mlx_audio are only loaded when used.
 def __getattr__(name: str):
     if name in ("MLXTTSEngine", "generate_podcast_mlx_tts"):
         from .client import MLXTTSEngine, generate_podcast_mlx_tts
+
         _map = {
             "MLXTTSEngine": MLXTTSEngine,
             "generate_podcast_mlx_tts": generate_podcast_mlx_tts,

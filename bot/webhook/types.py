@@ -6,9 +6,9 @@ live in app.slack.
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Generic, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
 T = TypeVar("T")
 
@@ -23,6 +23,7 @@ EventType = str
 # ---------------------------------------------------------------------------
 # Core protocols
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class EventHandler(Protocol[T]):
@@ -60,6 +61,7 @@ class Acknowledger(Protocol[T]):
 # Function adapters
 # ---------------------------------------------------------------------------
 
+
 class EventHandlerFunc(Generic[T]):
     """Wraps a plain async function as an EventHandler."""
 
@@ -93,6 +95,7 @@ class AcknowledgerFunc(Generic[T]):
 # ---------------------------------------------------------------------------
 # EventRegistration
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class EventRegistration(Generic[T]):
@@ -161,6 +164,7 @@ def new_registration_func(
 # ---------------------------------------------------------------------------
 # Handler interfaces (for HTTP server registration)
 # ---------------------------------------------------------------------------
+
 
 @runtime_checkable
 class HTTPHandler(Protocol):

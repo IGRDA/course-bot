@@ -6,9 +6,7 @@ import base64
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from bot.job.worker import _try_claim, _release_claim
+from bot.job.worker import _release_claim, _try_claim
 
 
 class TestTryClaim:
@@ -83,23 +81,33 @@ class TestWorkerMain:
         decoded = json.loads(base64.b64decode(payload_b64))
         assert decoded == original
 
-    @patch.dict("os.environ", {
-        "JOB_EVENT_PAYLOAD": base64.b64encode(json.dumps({
-            "type": "app_mention",
-            "channel": "C123",
-            "ts": "1234.5678",
-            "text": "<@U999> hello",
-        }).encode()).decode(),
-        "SLACK_BOT_TOKEN": "xoxb-test-token",
-        "JOB_THREAD_KEY": "C123:1234.5678",
-    }, clear=False)
+    @patch.dict(
+        "os.environ",
+        {
+            "JOB_EVENT_PAYLOAD": base64.b64encode(
+                json.dumps(
+                    {
+                        "type": "app_mention",
+                        "channel": "C123",
+                        "ts": "1234.5678",
+                        "text": "<@U999> hello",
+                    }
+                ).encode()
+            ).decode(),
+            "SLACK_BOT_TOKEN": "xoxb-test-token",
+            "JOB_THREAD_KEY": "C123:1234.5678",
+        },
+        clear=False,
+    )
     @patch("bot.job.worker._process_event")
     def test_main_calls_process_event(self, mock_process):
         """Verify main() decodes event and calls _process_event."""
         from unittest.mock import AsyncMock
+
         mock_process.side_effect = AsyncMock(return_value=None)
 
         from bot.job.worker import main
+
         main()
 
         mock_process.assert_called_once()

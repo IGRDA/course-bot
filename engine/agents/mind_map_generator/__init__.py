@@ -5,14 +5,13 @@ concept map methodology with LLM-powered structured output.
 """
 
 from .agent import (
-    generate_module_mindmap,
     generate_course_mindmaps,
     generate_mindmap_node,
+    generate_module_mindmap,
 )
 
 __all__ = [
-    "generate_module_mindmap",
     "generate_course_mindmaps",
     "generate_mindmap_node",
+    "generate_module_mindmap",
 ]
-

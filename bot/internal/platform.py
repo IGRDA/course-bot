@@ -1,13 +1,11 @@
-"""Platform abstraction — decouples business logic from Slack API.
-
-"""
+"""Platform abstraction — decouples business logic from Slack API."""
 
 from __future__ import annotations
 
 import logging
 import os
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 import httpx
@@ -21,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Thread message dataclass
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ThreadMessage:
     """A single message from a Slack thread (platform-agnostic)."""
@@ -29,12 +28,13 @@ class ThreadMessage:
     user_id: str
     user_name: str
     text: str
-    timestamp: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(tz=UTC))
 
 
 # ---------------------------------------------------------------------------
 # Protocol (interface)
 # ---------------------------------------------------------------------------
+
 
 class MessagePlatform(Protocol):
     """Platform-agnostic interface for sending messages and managing reactions."""
@@ -98,6 +98,7 @@ class MessagePlatform(Protocol):
 # Slack implementation
 # ---------------------------------------------------------------------------
 
+
 class SlackPlatform:
     """Concrete MessagePlatform backed by the Slack Web API.
 
@@ -160,7 +161,8 @@ class SlackPlatform:
                 )
             else:
                 logger.error(
-                    "Failed to fetch conversation replies: %s", error_code,
+                    "Failed to fetch conversation replies: %s",
+                    error_code,
                 )
             return []
 
@@ -169,9 +171,9 @@ class SlackPlatform:
             ts_str = msg.get("ts", "")
             try:
                 ts_float = float(ts_str)
-                timestamp = datetime.fromtimestamp(ts_float, tz=timezone.utc)
+                timestamp = datetime.fromtimestamp(ts_float, tz=UTC)
             except (ValueError, TypeError):
-                timestamp = datetime.now(tz=timezone.utc)
+                timestamp = datetime.now(tz=UTC)
 
             user_id = msg.get("user", "")
             user_name = self._resolve_user(user_id)
@@ -195,9 +197,7 @@ class SlackPlatform:
         return messages
 
     def _resolve_user(self, user_id: str) -> str:
-        """Resolve a Slack user ID to a display name (cached).
-
-        """
+        """Resolve a Slack user ID to a display name (cached)."""
         if not user_id:
             return "unknown"
 
@@ -208,12 +208,7 @@ class SlackPlatform:
             response = self._client.users_info(user=user_id)
             user = response.get("user", {})
             # Prefer real_name, then display_name from profile, then fallback
-            name = (
-                user.get("real_name")
-                or user.get("profile", {}).get("display_name")
-                or user.get("name")
-                or user_id
-            )
+            name = user.get("real_name") or user.get("profile", {}).get("display_name") or user.get("name") or user_id
             self._user_cache[user_id] = name
             return name
         except SlackApiError:

@@ -4,54 +4,54 @@ TTS Engine Factory.
 Provides a unified interface for creating TTS engines by name.
 """
 
-from typing import Optional, Literal
+from typing import Literal
 
 from .base_engine import BaseTTSEngine
 
-
 # Available engine types
-EngineType = Literal[
-"edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"]
+EngineType = Literal["edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"]
 
 
 def create_tts_engine(
     engine: EngineType = "qwen_tts_api",
     language: str = "en",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     **kwargs,
 ) -> BaseTTSEngine:
     """Create a TTS engine by name.
-    
+
     Args:
         engine: Engine type ("edge" or "coqui")
         language: Language code (e.g., "en", "es")
         speaker_map: Optional mapping of role names to speaker/voice IDs
         **kwargs: Additional engine-specific arguments
             - For Coqui: device (str) - "cpu" or "cuda"
-    
+
     Returns:
         TTS engine instance
-        
+
     Raises:
         ValueError: If engine type is unknown
-        
+
     Example:
         >>> engine = create_tts_engine("edge", language="es")
         >>> engine.supports_ssml
         True
-        
+
         >>> engine = create_tts_engine("coqui", language="en", device="cuda")
         >>> engine.supports_ssml
         False
     """
     if engine == "edge":
         from .edge.client import EdgeTTSEngine
+
         return EdgeTTSEngine(
             language=language,
             speaker_map=speaker_map,
         )
     elif engine == "coqui":
         from .coqui.client import CoquiTTSEngine
+
         return CoquiTTSEngine(
             language=language,
             speaker_map=speaker_map,
@@ -59,6 +59,7 @@ def create_tts_engine(
         )
     elif engine == "chatterbox":
         from .chatterbox.client import ChatterboxEngine
+
         return ChatterboxEngine(
             language=language,
             speaker_map=speaker_map,
@@ -68,6 +69,7 @@ def create_tts_engine(
         )
     elif engine == "elevenlabs":
         from .elevenlabs.client import ElevenLabsTTSEngine
+
         return ElevenLabsTTSEngine(
             language=language,
             speaker_map=speaker_map,
@@ -76,6 +78,7 @@ def create_tts_engine(
         )
     elif engine == "openai_tts":
         from .openai_tts.client import OpenAITTSEngine
+
         return OpenAITTSEngine(
             language=language,
             speaker_map=speaker_map,
@@ -85,6 +88,7 @@ def create_tts_engine(
         )
     elif engine == "qwen_tts":
         from .qwen_tts.client import QwenTTSEngine
+
         return QwenTTSEngine(
             language=language,
             speaker_map=speaker_map,
@@ -95,6 +99,7 @@ def create_tts_engine(
         )
     elif engine == "mlx_tts":
         from .mlx_tts.client import MLXTTSEngine
+
         return MLXTTSEngine(
             language=language,
             speaker_map=speaker_map,
@@ -106,6 +111,7 @@ def create_tts_engine(
         )
     elif engine == "qwen_tts_api":
         from .qwen_tts_api.client import QwenTTSApiEngine
+
         return QwenTTSApiEngine(
             language=language,
             speaker_map=speaker_map,
@@ -115,18 +121,24 @@ def create_tts_engine(
         )
     else:
         available = [
-            "edge", "coqui", "chatterbox", "elevenlabs", "openai_tts",
-            "qwen_tts", "mlx_tts", "qwen_tts_api",
+            "edge",
+            "coqui",
+            "chatterbox",
+            "elevenlabs",
+            "openai_tts",
+            "qwen_tts",
+            "mlx_tts",
+            "qwen_tts_api",
         ]
         raise ValueError(f"Unknown engine '{engine}'. Available: {available}")
 
 
 def get_engine_info(engine: EngineType) -> dict:
     """Get information about a TTS engine.
-    
+
     Args:
         engine: Engine type
-        
+
     Returns:
         Dict with engine capabilities and info
     """
@@ -148,9 +160,29 @@ def get_engine_info(engine: EngineType) -> dict:
             "description": "Resemble AI's zero-shot TTS with voice cloning - 23 languages",
             "requires_internet": False,
             "languages": [
-                "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi",
-                "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv",
-                "sw", "tr", "zh",
+                "ar",
+                "da",
+                "de",
+                "el",
+                "en",
+                "es",
+                "fi",
+                "fr",
+                "he",
+                "hi",
+                "it",
+                "ja",
+                "ko",
+                "ms",
+                "nl",
+                "no",
+                "pl",
+                "pt",
+                "ru",
+                "sv",
+                "sw",
+                "tr",
+                "zh",
             ],
         },
         "elevenlabs": {
@@ -158,9 +190,28 @@ def get_engine_info(engine: EngineType) -> dict:
             "description": "ElevenLabs cloud API - ultra-realistic voices, 29+ languages",
             "requires_internet": True,
             "languages": [
-                "ar", "da", "de", "el", "en", "es", "fi", "fr", "he", "hi",
-                "it", "ja", "ko", "ms", "nl", "no", "pl", "pt", "ru", "sv",
-                "tr", "zh",
+                "ar",
+                "da",
+                "de",
+                "el",
+                "en",
+                "es",
+                "fi",
+                "fr",
+                "he",
+                "hi",
+                "it",
+                "ja",
+                "ko",
+                "ms",
+                "nl",
+                "no",
+                "pl",
+                "pt",
+                "ru",
+                "sv",
+                "tr",
+                "zh",
             ],
         },
         "openai_tts": {
@@ -168,11 +219,56 @@ def get_engine_info(engine: EngineType) -> dict:
             "description": "OpenAI gpt-4o-mini-tts - controllable accent/tone via instructions, 50+ languages",
             "requires_internet": True,
             "languages": [
-                "af", "ar", "be", "bg", "bs", "ca", "cs", "da", "de", "el",
-                "en", "es", "et", "fi", "fr", "gl", "he", "hi", "hr", "hu",
-                "id", "is", "it", "ja", "kn", "ko", "lv", "lt", "mk", "ms",
-                "mr", "ne", "nl", "no", "fa", "pl", "pt", "ro", "ru", "sk",
-                "sl", "sr", "sv", "sw", "ta", "th", "tr", "uk", "ur", "vi",
+                "af",
+                "ar",
+                "be",
+                "bg",
+                "bs",
+                "ca",
+                "cs",
+                "da",
+                "de",
+                "el",
+                "en",
+                "es",
+                "et",
+                "fi",
+                "fr",
+                "gl",
+                "he",
+                "hi",
+                "hr",
+                "hu",
+                "id",
+                "is",
+                "it",
+                "ja",
+                "kn",
+                "ko",
+                "lv",
+                "lt",
+                "mk",
+                "ms",
+                "mr",
+                "ne",
+                "nl",
+                "no",
+                "fa",
+                "pl",
+                "pt",
+                "ro",
+                "ru",
+                "sk",
+                "sl",
+                "sr",
+                "sv",
+                "sw",
+                "ta",
+                "th",
+                "tr",
+                "uk",
+                "ur",
+                "vi",
                 "zh",
             ],
         },
@@ -195,16 +291,16 @@ def get_engine_info(engine: EngineType) -> dict:
             "languages": ["es", "en", "fr", "de", "it", "pt", "zh", "ja", "ko"],
         },
     }
-    
+
     if engine not in info:
         raise ValueError(f"Unknown engine '{engine}'")
-    
+
     return info[engine]
 
 
 def list_engines() -> list[dict]:
     """List all available TTS engines with their info.
-    
+
     Returns:
         List of engine info dictionaries
     """
@@ -218,4 +314,3 @@ def list_engines() -> list[dict]:
         {"engine": "mlx_tts", **get_engine_info("mlx_tts")},
         {"engine": "qwen_tts_api", **get_engine_info("qwen_tts_api")},
     ]
-

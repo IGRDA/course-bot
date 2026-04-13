@@ -1,8 +1,11 @@
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 
 # ---- Main HTML Generation Prompt ----
-html_generation_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert in web content structuring and educational design.
+html_generation_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert in web content structuring and educational design.
 Your task is to convert plain theory text into a structured JSON format suitable for modern web display.
 
 You must create content that:
@@ -12,9 +15,11 @@ You must create content that:
 - Maintains educational value while being visually organized
 - Follows the exact JSON schema provided
 
-Language: {language}"""),
-    
-    ("human", """Convert this theory text into a structured HTML JSON format as a direct array:
+Language: {language}""",
+        ),
+        (
+            "human",
+            """Convert this theory text into a structured HTML JSON format as a direct array:
 
 THEORY TEXT:
 {theory}
@@ -31,7 +36,7 @@ REQUIREMENTS:
 2. MAIN CONTENT (required):
    - Use one of the interactive format types for the main body content
    - Available formats: {allowed_formats}
-   
+
    UNIVERSAL BLOCK STRUCTURE (ALL interactive formats use this EXACT structure):
    - Content: List of blocks (minimum 3 blocks)
    - Each block has THREE required fields:
@@ -39,13 +44,13 @@ REQUIREMENTS:
      * icon: Material Design Icon name (e.g., "mdi-book", "mdi-lightbulb", "mdi-chart-line")
        Suggested icon based on section: {suggested_icon}
      * elements: List of HTML elements (minimum 2 elements per block)
-   
+
    Element types allowed inside blocks:
    - "p": Paragraph text (string content)
    - "ul": Bullet list (array of strings)
    {quote_instruction}
    {table_instruction}
-   
+
    CONTENT FORMATTING RULES:
    - For paragraphs ("p") and lists ("ul"): Use HTML tags like <b> for bold, <i> for italic, <u> for underline
    - For tables ("table"): Use plain text ONLY - NO HTML tags (<b>, <i>, <u>) inside table cells
@@ -53,7 +58,7 @@ REQUIREMENTS:
    - NEVER include line breaks (no \n, no \r characters)
    - NEVER use alphanumeric list prefixes (no "a)", "1.", "2)", "-", etc.)
    - Write all content as continuous flowing text with HTML tags for emphasis (except in tables)
-   
+
    NOTE: There is NO difference in structure between formats - only in how they're displayed in the UI.
    Do NOT create special structures like "front"/"back" for flip cards - use the universal block structure.
 
@@ -143,8 +148,10 @@ IMPORTANT:
 - ALL INTERACTIVE FORMATS USE THE SAME STRUCTURE: {{title, icon, elements}} blocks - no exceptions!
 - For "flip" cards: Use the SAME block structure, NOT "front"/"back" fields
 - CONTENT FORMATTING: HTML tags (<b>, <i>, <u>) for paragraphs/lists only, plain text in tables, no markdown, no line breaks, no list prefixes
-""")
-])
+""",
+        ),
+    ]
+)
 
 
 # ---- Correction Prompt ----

@@ -43,22 +43,23 @@ Examples:
         action="store_true",
         help="Print simplified JSON to stdout instead of saving",
     )
-    
+
     args = parser.parse_args()
-    
+
     input_path = Path(args.input_path)
-    
+
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}", file=sys.stderr)
         return 1
-    
+
     try:
         if args.preview:
             # Preview mode: just print to stdout
-            with open(input_path, "r", encoding="utf-8") as f:
+            with open(input_path, encoding="utf-8") as f:
                 module_data = json.load(f)
-            
+
             from .agent import simplify_module
+
             simplified = simplify_module(module_data)
             print(json.dumps(simplified, indent=2, ensure_ascii=False))
         else:
@@ -68,22 +69,19 @@ Examples:
                 output_dir=args.output_dir,
             )
             print(f"✅ Simplified module saved to: {output_path}")
-            
+
             # Print summary
-            with open(output_path, "r", encoding="utf-8") as f:
+            with open(output_path, encoding="utf-8") as f:
                 simplified = json.load(f)
-            
+
             n_submodules = len(simplified.get("submodules", []))
-            n_sections = sum(
-                len(sm.get("sections", []))
-                for sm in simplified.get("submodules", [])
-            )
+            n_sections = sum(len(sm.get("sections", [])) for sm in simplified.get("submodules", []))
             print(f"   Module: {simplified.get('title', 'N/A')}")
             print(f"   Submodules: {n_submodules}")
             print(f"   Sections: {n_sections}")
-        
+
         return 0
-        
+
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         return 1
@@ -91,4 +89,3 @@ Examples:
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -30,15 +30,14 @@ class JobDispatcher:
         job_name: str,
         max_concurrent: int = 5,
     ) -> None:
-        self._job_path = (
-            f"projects/{project_id}/locations/{region}/jobs/{job_name}"
-        )
+        self._job_path = f"projects/{project_id}/locations/{region}/jobs/{job_name}"
         self._max_concurrent = max_concurrent
         self._jobs_client = run_v2.JobsClient()
         self._executions_client = run_v2.ExecutionsClient()
 
     def check_availability(
-        self, thread_key: str,
+        self,
+        thread_key: str,
     ) -> tuple[bool, str]:
         """Check whether a new execution can be dispatched.
 
@@ -68,9 +67,7 @@ class JobDispatcher:
 
         Returns the execution name.
         """
-        payload_b64 = base64.b64encode(
-            json.dumps(event).encode()
-        ).decode()
+        payload_b64 = base64.b64encode(json.dumps(event).encode()).decode()
 
         request = run_v2.RunJobRequest(
             name=self._job_path,
@@ -110,10 +107,7 @@ class JobDispatcher:
             executions = self._executions_client.list_executions(
                 parent=self._job_path,
             )
-            return [
-                e for e in executions
-                if not e.completion_time
-            ]
+            return [e for e in executions if not e.completion_time]
         except Exception:
             logger.warning(
                 "Failed to list executions — allowing dispatch",

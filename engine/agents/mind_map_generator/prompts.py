@@ -76,8 +76,9 @@ IMPORTANT RULES:
 Return ONLY the JSON object, no markdown or explanations:"""
 
 # Create the ChatPromptTemplate
-mindmap_generation_prompt = ChatPromptTemplate.from_messages([
-    ("system", MINDMAP_SYSTEM_PROMPT),
-    ("human", MINDMAP_HUMAN_PROMPT),
-])
-
+mindmap_generation_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", MINDMAP_SYSTEM_PROMPT),
+        ("human", MINDMAP_HUMAN_PROMPT),
+    ]
+)

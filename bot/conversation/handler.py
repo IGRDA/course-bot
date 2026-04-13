@@ -11,8 +11,8 @@ locking is needed here.
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
 
 from bot.conversation.types import ConversationRequest, WorkspaceInfo
 from bot.workspace.manager import WorkspaceManager
@@ -28,7 +28,8 @@ class ConversationHandler:
 
     @asynccontextmanager
     async def handle(
-        self, request: ConversationRequest,
+        self,
+        request: ConversationRequest,
     ) -> AsyncIterator[WorkspaceInfo]:
         workspace_id = request.workspace_id
 

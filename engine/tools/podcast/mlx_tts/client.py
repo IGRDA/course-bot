@@ -13,13 +13,12 @@ https://github.com/Blaizzy/mlx-audio
 import os
 import tempfile
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 TaskType = Literal["custom_voice", "voice_clone"]
 
@@ -54,8 +53,15 @@ MLX_VOICE_MAP: dict[str, dict[str, str]] = {
 }
 
 MLX_ALL_SPEAKERS = [
-    "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric",
-    "Ryan", "Aiden", "Ono_Anna", "Sohee",
+    "Vivian",
+    "Serena",
+    "Uncle_Fu",
+    "Dylan",
+    "Eric",
+    "Ryan",
+    "Aiden",
+    "Ono_Anna",
+    "Sohee",
 ]
 
 # HuggingFace MLX-optimized model IDs
@@ -89,10 +95,10 @@ class MLXTTSEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str]] = None,
+        speaker_map: dict[str, str] | None = None,
         task_type: TaskType = "voice_clone",
-        instruct: Optional[str] = None,
-        model_name: Optional[str] = None,
+        instruct: str | None = None,
+        model_name: str | None = None,
         temperature: float = 0.7,
         speed: float = 1.0,
     ):
@@ -116,9 +122,7 @@ class MLXTTSEngine(BaseTTSEngine):
 
         if language not in MLX_LANGUAGE_MAP:
             available = ", ".join(sorted(MLX_LANGUAGE_MAP.keys()))
-            raise ValueError(
-                f"Unsupported language '{language}'. Available: {available}"
-            )
+            raise ValueError(f"Unsupported language '{language}'. Available: {available}")
 
         self.task_type = task_type
         self.instruct = instruct
@@ -137,21 +141,15 @@ class MLXTTSEngine(BaseTTSEngine):
             if task_type == "voice_clone":
                 # Use default reference voices if available for this language
                 default_clone = MLX_DEFAULT_CLONE_MAP.get(language)
-                if default_clone and all(
-                    Path(p).exists() for p in default_clone.values()
-                ):
+                if default_clone and all(Path(p).exists() for p in default_clone.values()):
                     self.speaker_map = default_clone.copy()
                 else:
                     # Fall back to custom_voice built-in speakers
                     self.task_type = "custom_voice"
                     self.model_name = model_name or MLX_MODEL_CUSTOM_VOICE
-                    self.speaker_map = MLX_VOICE_MAP.get(
-                        language, MLX_VOICE_MAP["en"]
-                    ).copy()
+                    self.speaker_map = MLX_VOICE_MAP.get(language, MLX_VOICE_MAP["en"]).copy()
             else:
-                self.speaker_map = MLX_VOICE_MAP.get(
-                    language, MLX_VOICE_MAP["en"]
-                ).copy()
+                self.speaker_map = MLX_VOICE_MAP.get(language, MLX_VOICE_MAP["en"]).copy()
 
         self._model = None
         self._ref_audio_cache: dict[str, object] = {}
@@ -179,9 +177,7 @@ class MLXTTSEngine(BaseTTSEngine):
         if ref_audio_path not in self._ref_audio_cache:
             from mlx_audio.utils import load_audio
 
-            self._ref_audio_cache[ref_audio_path] = load_audio(
-                ref_audio_path, sample_rate=self.model.sample_rate
-            )
+            self._ref_audio_cache[ref_audio_path] = load_audio(ref_audio_path, sample_rate=self.model.sample_rate)
         return self._ref_audio_cache[ref_audio_path]
 
     def get_speaker_for_role(self, role: str) -> str:
@@ -209,7 +205,7 @@ class MLXTTSEngine(BaseTTSEngine):
         text: str,
         output_path: str,
         role: str = "host",
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Run model.generate() and write the result to a WAV file."""
         from mlx_audio.audio_io import write as audio_write
@@ -229,10 +225,7 @@ class MLXTTSEngine(BaseTTSEngine):
         if self.task_type == "voice_clone":
             ref_audio_path = self.get_speaker_for_role(role)
             if not Path(ref_audio_path).exists():
-                raise FileNotFoundError(
-                    f"Reference audio not found for role '{role}': "
-                    f"{ref_audio_path}"
-                )
+                raise FileNotFoundError(f"Reference audio not found for role '{role}': {ref_audio_path}")
             gen_kwargs["ref_audio"] = self._load_ref_audio(ref_audio_path)
             gen_kwargs["ref_text"] = ""
         else:
@@ -248,11 +241,7 @@ class MLXTTSEngine(BaseTTSEngine):
             audio_chunks.append(np.array(result.audio))
             sample_rate = result.sample_rate
 
-        audio = (
-            np.concatenate(audio_chunks)
-            if len(audio_chunks) > 1
-            else audio_chunks[0]
-        )
+        audio = np.concatenate(audio_chunks) if len(audio_chunks) > 1 else audio_chunks[0]
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         audio_write(output_path, audio, sample_rate, format="wav")
@@ -262,7 +251,7 @@ class MLXTTSEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to a WAV file.
 
@@ -286,9 +275,9 @@ class MLXTTSEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -356,21 +345,21 @@ def generate_podcast_mlx_tts(
     conversation: list[dict],
     output_path: str,
     language: str = "en",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     task_type: TaskType = "voice_clone",
-    instruct: Optional[str] = None,
-    model_name: Optional[str] = None,
+    instruct: str | None = None,
+    model_name: str | None = None,
     temperature: float = 0.7,
     speed: float = 1.0,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,

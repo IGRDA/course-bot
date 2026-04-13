@@ -8,18 +8,16 @@ Requires an API key (ELEVENLABS_API_KEY env var) and internet connection.
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 # Premade ElevenLabs voice IDs.
 # These voices support 29+ languages via the language_code parameter.
 ELEVENLABS_VOICE_MAP = {
     "en": {
-        "host": "pNInz6obpgDQGcFmaJgB",      # Adam (male)
-        "guest": "21m00Tcm4TlvDq8ikWAM",      # Rachel (female)
+        "host": "pNInz6obpgDQGcFmaJgB",  # Adam (male)
+        "guest": "21m00Tcm4TlvDq8ikWAM",  # Rachel (female)
     },
     "es": {
         "host": "pNInz6obpgDQGcFmaJgB",
@@ -86,9 +84,9 @@ class ElevenLabsTTSEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str]] = None,
+        speaker_map: dict[str, str] | None = None,
         model_id: str = "eleven_multilingual_v2",
-        api_key: Optional[str] = None,
+        api_key: str | None = None,
     ):
         """Initialize the ElevenLabs TTS engine.
 
@@ -103,15 +101,10 @@ class ElevenLabsTTSEngine(BaseTTSEngine):
         self.model_id = model_id
         self.api_key = api_key or os.getenv("ELEVENLABS_API_KEY")
         if not self.api_key:
-            raise ValueError(
-                "ElevenLabs API key required. Set ELEVENLABS_API_KEY env var "
-                "or pass api_key parameter."
-            )
+            raise ValueError("ElevenLabs API key required. Set ELEVENLABS_API_KEY env var or pass api_key parameter.")
 
         if not self.speaker_map:
-            self.speaker_map = ELEVENLABS_VOICE_MAP.get(
-                language, ELEVENLABS_VOICE_MAP["en"]
-            ).copy()
+            self.speaker_map = ELEVENLABS_VOICE_MAP.get(language, ELEVENLABS_VOICE_MAP["en"]).copy()
 
         self._client = None
 
@@ -120,6 +113,7 @@ class ElevenLabsTTSEngine(BaseTTSEngine):
         """Lazy-initialise the ElevenLabs client."""
         if self._client is None:
             from elevenlabs.client import ElevenLabs
+
             self._client = ElevenLabs(api_key=self.api_key)
         return self._client
 
@@ -145,7 +139,7 @@ class ElevenLabsTTSEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to an MP3 file via ElevenLabs API.
 
@@ -182,9 +176,9 @@ class ElevenLabsTTSEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -261,19 +255,19 @@ def generate_podcast_elevenlabs(
     conversation: list[dict],
     output_path: str,
     language: str = "en",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     # ElevenLabs-specific
     model_id: str = "eleven_multilingual_v2",
-    api_key: Optional[str] = None,
+    api_key: str | None = None,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,

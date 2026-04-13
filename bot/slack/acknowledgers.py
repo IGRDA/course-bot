@@ -1,6 +1,4 @@
-"""Slack-specific acknowledgers — reaction ack, privacy notice, etc.
-
-"""
+"""Slack-specific acknowledgers — reaction ack, privacy notice, etc."""
 
 from __future__ import annotations
 
@@ -10,7 +8,7 @@ from typing import Any
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-from bot.webhook.types import AcknowledgerFunc, EventHandlerOption, EventRegistration
+from bot.webhook.types import EventHandlerOption, EventRegistration
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +16,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Reaction acknowledger
 # ---------------------------------------------------------------------------
+
 
 class ReactionAcknowledger:
     """Adds an emoji reaction to acknowledge receipt of an event.
@@ -51,6 +50,7 @@ class ReactionAcknowledger:
 # ---------------------------------------------------------------------------
 # Convenience option builders
 # ---------------------------------------------------------------------------
+
 
 def app_mention_reaction_ack(
     client: WebClient,

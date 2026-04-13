@@ -18,11 +18,11 @@ Supports two kinds of input:
    to reconstruct the hierarchy automatically.
 """
 
-import re
 import logging
+import re
 from pathlib import Path
 
-from workflows.state import CourseState, CourseConfig, Module, Submodule, Section
+from workflows.state import CourseConfig, CourseState, Module, Section, Submodule
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +62,12 @@ _STRAY_SINGLE_CHAR_RE = re.compile(r"(?<=\n)\s*[A-Z]\s*(?=\n)")
 
 _NUMBERED_PREFIX_RE = re.compile(
     r"^(?:"
-    r"|\d+(?:\.\d+)+[.\-–—]*\s*"     # multi-level: 1.1, 2.3.1 (optionally followed by .- )
-    r"|\d+[.\-–—]+\s*"               # single-level with punctuation: 1.-, 7.-, 1.
+    r"|\d+(?:\.\d+)+[.\-–—]*\s*"  # multi-level: 1.1, 2.3.1 (optionally followed by .- )
+    r"|\d+[.\-–—]+\s*"  # single-level with punctuation: 1.-, 7.-, 1.
     r")"
 )
 
-_MALFORMED_HEADING_RE = re.compile(
-    r"^[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]{5,}$"
-)
+_MALFORMED_HEADING_RE = re.compile(r"^[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ]{5,}$")
 
 
 # ---------------------------------------------------------------------------
@@ -109,9 +107,7 @@ def _is_malformed_heading(title: str) -> bool:
     if _MALFORMED_HEADING_RE.match(stripped):
         return True
     alpha_chars = sum(1 for c in stripped if c.isalpha())
-    if len(stripped) > 10 and alpha_chars / len(stripped) < 0.3:
-        return True
-    return False
+    return bool(len(stripped) > 10 and alpha_chars / len(stripped) < 0.3)
 
 
 def _derive_image_description(alt: str, preceding_text: str) -> str:
@@ -149,11 +145,13 @@ def extract_images_with_context(text: str) -> list[dict]:
         preceding_clean = _IMAGE_RE.sub("", preceding_raw).strip()
         snippet = preceding_clean[-_PRECEDING_SNIPPET_LEN:]
         raw_alt = m.group(1)
-        results.append({
-            "alt": _derive_image_description(raw_alt, snippet),
-            "path": m.group(2),
-            "preceding_text": snippet,
-        })
+        results.append(
+            {
+                "alt": _derive_image_description(raw_alt, snippet),
+                "path": m.group(2),
+                "preceding_text": snippet,
+            }
+        )
     return results
 
 
@@ -171,6 +169,7 @@ def _is_content_image(path: Path, min_pixels: int = 10000, max_aspect: float = 6
     """
     try:
         from PIL import Image
+
         img = Image.open(path)
         w, h = img.size
         img.close()
@@ -190,11 +189,13 @@ def _resolve_image_paths(images: list[dict], md_file: Path, source_folder: Path)
     for img in images:
         raw_path = img["path"]
         if raw_path.startswith(("http://", "https://")):
-            resolved.append({
-                "alt": img["alt"],
-                "path": raw_path,
-                "preceding_text": img.get("preceding_text", ""),
-            })
+            resolved.append(
+                {
+                    "alt": img["alt"],
+                    "path": raw_path,
+                    "preceding_text": img.get("preceding_text", ""),
+                }
+            )
             continue
         candidate = (md_file.parent / raw_path).resolve()
         if not candidate.exists():
@@ -202,17 +203,20 @@ def _resolve_image_paths(images: list[dict], md_file: Path, source_folder: Path)
         if candidate.exists() and not _is_content_image(candidate):
             logger.debug("Skipping text-only image: %s", candidate.name)
             continue
-        resolved.append({
-            "alt": img["alt"],
-            "path": str(candidate),
-            "preceding_text": img.get("preceding_text", ""),
-        })
+        resolved.append(
+            {
+                "alt": img["alt"],
+                "path": str(candidate),
+                "preceding_text": img.get("preceding_text", ""),
+            }
+        )
     return resolved
 
 
 # ---------------------------------------------------------------------------
 # Heading normalisation (fallback for flat markdown)
 # ---------------------------------------------------------------------------
+
 
 def _normalize_headings_if_needed(md_text: str) -> str:
     """Apply heading-level correction when headings appear to be flattened.
@@ -273,6 +277,7 @@ def _normalize_headings_if_needed(md_text: str) -> str:
 # Heading tree builder
 # ---------------------------------------------------------------------------
 
+
 def _split_by_headings(md_text: str) -> list[dict]:
     """Split markdown text into a flat list of heading blocks.
 
@@ -319,6 +324,7 @@ def _split_by_headings(md_text: str) -> list[dict]:
 # Content helpers
 # ---------------------------------------------------------------------------
 
+
 def _is_objectives_section(title: str) -> bool:
     """Return True if *title* matches a learning-objectives heading pattern."""
     return bool(_OBJECTIVES_RE.search(title))
@@ -362,6 +368,7 @@ def _is_frontmatter_file(filepath: Path) -> bool:
 # Module file parser
 # ---------------------------------------------------------------------------
 
+
 def parse_module_file(filepath: Path, source_folder: Path, module_index: int) -> Module:
     """Parse a single markdown file into a ``Module``.
 
@@ -397,7 +404,7 @@ def parse_module_file(filepath: Path, source_folder: Path, module_index: int) ->
             if level == 1 and title:
                 module_title = _strip_numbered_prefix(title)
             if body:
-                preamble_body += ("\n\n" + body if preamble_body else body)
+                preamble_body += "\n\n" + body if preamble_body else body
             continue
 
         if _is_objectives_section(title):
@@ -406,11 +413,13 @@ def parse_module_file(filepath: Path, source_folder: Path, module_index: int) ->
 
         if level == 2:
             if current_submodule_title or current_sections:
-                submodules.append(_build_submodule(
-                    current_submodule_title or "General",
-                    current_sections,
-                    len(submodules) + 1,
-                ))
+                submodules.append(
+                    _build_submodule(
+                        current_submodule_title or "General",
+                        current_sections,
+                        len(submodules) + 1,
+                    )
+                )
                 current_sections = []
             current_submodule_title = title
             if body.strip():
@@ -451,16 +460,24 @@ def parse_module_file(filepath: Path, source_folder: Path, module_index: int) ->
             module_description = extracted_desc
 
     if current_submodule_title or current_sections:
-        submodules.append(_build_submodule(
-            current_submodule_title or "General",
-            current_sections,
-            len(submodules) + 1,
-        ))
+        submodules.append(
+            _build_submodule(
+                current_submodule_title or "General",
+                current_sections,
+                len(submodules) + 1,
+            )
+        )
 
     if not submodules:
-        submodules = [Submodule(title="Content", index=1, sections=[
-            Section(title="Content", index=1, theory=md_text),
-        ])]
+        submodules = [
+            Submodule(
+                title="Content",
+                index=1,
+                sections=[
+                    Section(title="Content", index=1, theory=md_text),
+                ],
+            )
+        ]
 
     for sm in submodules:
         for sec in sm.sections:
@@ -468,7 +485,9 @@ def parse_module_file(filepath: Path, source_folder: Path, module_index: int) ->
             if word_count < _MIN_SECTION_WORDS:
                 logger.warning(
                     "Short section (%d words): [%s] > [%s] — consider merging",
-                    word_count, sm.title[:40], sec.title[:40],
+                    word_count,
+                    sm.title[:40],
+                    sec.title[:40],
                 )
 
     return Module(
@@ -483,6 +502,7 @@ def parse_module_file(filepath: Path, source_folder: Path, module_index: int) ->
 # ---------------------------------------------------------------------------
 # Small helpers
 # ---------------------------------------------------------------------------
+
 
 def _title_from_filename(filepath: Path) -> str:
     """Derive a human-readable title from a filename like ``01_intro_to_physics.md``."""
@@ -504,7 +524,9 @@ def _body_to_section(
     if resolved_images and len(resolved_images) > _MAX_IMAGES_PER_SECTION:
         logger.info(
             "Capping images in section '%s' from %d to %d",
-            title[:60], len(resolved_images), _MAX_IMAGES_PER_SECTION,
+            title[:60],
+            len(resolved_images),
+            _MAX_IMAGES_PER_SECTION,
         )
         resolved_images = resolved_images[:_MAX_IMAGES_PER_SECTION]
     clean_theory = strip_images(body).strip()
@@ -527,6 +549,7 @@ def _build_submodule(title: str, sections: list[Section], index: int) -> Submodu
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def parse_markdown_folder(
     folder_path: str,
@@ -574,15 +597,15 @@ def parse_markdown_folder(
 
     if len(modules) < _MIN_MODULES:
         logger.warning(
-            "Only %d module(s) parsed — expected at least %d. "
-            "The source content may be too short or poorly split.",
-            len(modules), _MIN_MODULES,
+            "Only %d module(s) parsed — expected at least %d. The source content may be too short or poorly split.",
+            len(modules),
+            _MIN_MODULES,
         )
     elif len(modules) > _MAX_MODULES:
         logger.warning(
-            "%d modules parsed — expected at most %d. "
-            "Consider merging related modules.",
-            len(modules), _MAX_MODULES,
+            "%d modules parsed — expected at most %d. Consider merging related modules.",
+            len(modules),
+            _MAX_MODULES,
         )
 
     for mod in modules:
@@ -590,13 +613,16 @@ def parse_markdown_folder(
         if n_sub < _MIN_SUBMODULES:
             logger.warning(
                 "Module '%s' has only %d submodule(s) — expected at least %d.",
-                mod.title[:60], n_sub, _MIN_SUBMODULES,
+                mod.title[:60],
+                n_sub,
+                _MIN_SUBMODULES,
             )
         elif n_sub > _MAX_SUBMODULES:
             logger.warning(
-                "Module '%s' has %d submodules — expected at most %d. "
-                "Consider splitting this module.",
-                mod.title[:60], n_sub, _MAX_SUBMODULES,
+                "Module '%s' has %d submodules — expected at most %d. Consider splitting this module.",
+                mod.title[:60],
+                n_sub,
+                _MAX_SUBMODULES,
             )
 
     if not title:

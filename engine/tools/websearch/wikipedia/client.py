@@ -13,11 +13,11 @@ logger = logging.getLogger(__name__)
 def web_search(query: str, max_results: int = 5) -> str:
     """
     Search Wikipedia using LangChain.
-    
+
     Args:
         query: Search query string
         max_results: Maximum number of results (default: 5)
-        
+
     Returns:
         String containing Wikipedia search results
     """
@@ -26,32 +26,25 @@ def web_search(query: str, max_results: int = 5) -> str:
         from langchain_community.utilities import WikipediaAPIWrapper
 
         # Initialize Wikipedia API wrapper with max_results
-        wikipedia = WikipediaAPIWrapper(
-            top_k_results=max_results,
-            doc_content_chars_max=4000
-        )
+        wikipedia = WikipediaAPIWrapper(top_k_results=max_results, doc_content_chars_max=4000)
         search_tool = WikipediaQueryRun(api_wrapper=wikipedia)
         result = search_tool.run(query)
         return result
     except Exception as e:
-        logger.error(
-            "Wikipedia search failed for query '%s': %s",
-            query,
-            str(e)
-        )
-        return f"Wikipedia search failed: {str(e)}"
+        logger.error("Wikipedia search failed for query '%s': %s", query, str(e))
+        return f"Wikipedia search failed: {e!s}"
 
 
 if __name__ == "__main__":
     query = "artificial inteligence"
     max_results = 10
-    
+
     print(f"🔍 Searching Wikipedia for: '{query}'")
     print("-" * 80)
-    
+
     result = web_search(query, max_results)
-    
-    print(f"\n📚 Wikipedia Results:\n")
+
+    print("\n📚 Wikipedia Results:\n")
     if result.startswith("Wikipedia search failed"):
         print(f"❌ {result}")
     else:

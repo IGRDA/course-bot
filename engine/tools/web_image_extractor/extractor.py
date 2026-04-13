@@ -23,6 +23,7 @@ Public API:
 from __future__ import annotations
 
 import atexit
+import contextlib
 import hashlib
 import json
 import re
@@ -39,9 +40,17 @@ _TIMEOUT = 15
 _INTER_PAGE_DELAY = 2.0
 
 _FILTER_URL_SUBSTRINGS = {
-    "favicon", "pixel", "spacer", "blank",
-    "transparent", "1x1", "spinner", "loader",
-    "doubleclick", "google-analytics", "facebook.com/tr",
+    "favicon",
+    "pixel",
+    "spacer",
+    "blank",
+    "transparent",
+    "1x1",
+    "spinner",
+    "loader",
+    "doubleclick",
+    "google-analytics",
+    "facebook.com/tr",
 }
 
 _FILTER_EXTENSIONS = {".svg"}
@@ -68,6 +77,7 @@ _BG_IMAGE_RE = re.compile(
 # ---------------------------------------------------------------------------
 # Filtering
 # ---------------------------------------------------------------------------
+
 
 def _is_filtered(src: str, tag: Tag | None = None) -> bool:
     """Return True if the image should be excluded as non-content."""
@@ -112,6 +122,7 @@ def _normalize_url(src: str, page_url: str) -> str:
 # Context extraction
 # ---------------------------------------------------------------------------
 
+
 def _find_preceding_heading(element: Tag) -> str:
     """Walk backwards in the DOM to find the nearest heading text."""
     node = element
@@ -152,16 +163,12 @@ def _find_context_text(element: Tag) -> str:
 # Extraction methods
 # ---------------------------------------------------------------------------
 
+
 def _extract_img_tags(soup: BeautifulSoup, page_url: str) -> list[dict]:
     """Method 1 & 2: <img src> and <img data-src> / data-lazy-src."""
     results = []
     for img in soup.find_all("img"):
-        src = (
-            img.get("src")
-            or img.get("data-src")
-            or img.get("data-lazy-src")
-            or img.get("data-original")
-        )
+        src = img.get("src") or img.get("data-src") or img.get("data-lazy-src") or img.get("data-original")
         if not src:
             continue
 
@@ -170,11 +177,13 @@ def _extract_img_tags(soup: BeautifulSoup, page_url: str) -> list[dict]:
             continue
 
         alt = img.get("alt", "").strip()
-        results.append({
-            "src": src,
-            "alt": alt,
-            "_element": img,
-        })
+        results.append(
+            {
+                "src": src,
+                "alt": alt,
+                "_element": img,
+            }
+        )
     return results
 
 
@@ -198,10 +207,8 @@ def _extract_picture_sources(soup: BeautifulSoup, page_url: str) -> list[dict]:
                 url = parts[0]
                 width = 0
                 if len(parts) > 1 and parts[1].endswith("w"):
-                    try:
+                    with contextlib.suppress(ValueError):
                         width = int(parts[1][:-1])
-                    except ValueError:
-                        pass
                 if width > best_width:
                     best_width = width
                     best_src = url
@@ -220,11 +227,13 @@ def _extract_picture_sources(soup: BeautifulSoup, page_url: str) -> list[dict]:
         if img_fallback:
             alt = img_fallback.get("alt", "").strip()
 
-        results.append({
-            "src": best_src,
-            "alt": alt,
-            "_element": picture,
-        })
+        results.append(
+            {
+                "src": best_src,
+                "alt": alt,
+                "_element": picture,
+            }
+        )
     return results
 
 
@@ -237,11 +246,13 @@ def _extract_background_images(soup: BeautifulSoup, page_url: str) -> list[dict]
             src = _normalize_url(match.group(1).strip(), page_url)
             if _is_filtered(src, tag):
                 continue
-            results.append({
-                "src": src,
-                "alt": "",
-                "_element": tag,
-            })
+            results.append(
+                {
+                    "src": src,
+                    "alt": "",
+                    "_element": tag,
+                }
+            )
     return results
 
 
@@ -260,9 +271,7 @@ def _html_looks_valid(html: str) -> bool:
     lower = html[:4000].lower()
     if any(marker in lower for marker in _CAPTCHA_MARKERS):
         return False
-    if html.count("<div") < 10 and html.count("<polygon") > 50:
-        return False
-    return True
+    return not (html.count("<div") < 10 and html.count("<polygon") > 50)
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +313,7 @@ def _get_playwright_context():
     if browser is None:
         return None
     from playwright_stealth import Stealth
+
     _pw_context = browser.new_context(
         user_agent=_HEADERS["User-Agent"],
         locale="es-ES",
@@ -351,10 +361,8 @@ def _fetch_html_playwright(url: str, timeout: int = _TIMEOUT) -> str | None:
         page.goto(url, wait_until="domcontentloaded", timeout=timeout * 2 * 1000)
         page.wait_for_timeout(_SG_CAPTCHA_WAIT)
 
-        try:
+        with contextlib.suppress(Exception):
             page.wait_for_load_state("networkidle", timeout=20000)
-        except Exception:
-            pass
         page.wait_for_timeout(_POST_CAPTCHA_SETTLE)
 
         try:
@@ -378,10 +386,8 @@ def _fetch_html_playwright(url: str, timeout: int = _TIMEOUT) -> str | None:
     except Exception as exc:
         print(f"[web_image_extractor] Playwright failed for {url}: {exc}", file=sys.stderr)
         if page:
-            try:
+            with contextlib.suppress(Exception):
                 page.close()
-            except Exception:
-                pass
         return None
 
 
@@ -401,7 +407,9 @@ def _fetch_html(url: str, timeout: int = _TIMEOUT) -> str | None:
     try:
         result = subprocess.run(
             ["curl", "-sL", "--max-time", str(timeout), url],
-            capture_output=True, text=True, timeout=timeout + 5,
+            capture_output=True,
+            text=True,
+            timeout=timeout + 5,
         )
         if result.returncode == 0 and _html_looks_valid(result.stdout):
             return result.stdout
@@ -424,12 +432,12 @@ def _fetch_html(url: str, timeout: int = _TIMEOUT) -> str | None:
 # ---------------------------------------------------------------------------
 
 _IMAGE_SIGNATURES = {
-    b'\x89PNG\r\n\x1a\n': '.png',
-    b'\xff\xd8\xff': '.jpg',
-    b'GIF87a': '.gif',
-    b'GIF89a': '.gif',
-    b'RIFF': '.webp',  # RIFF....WEBP
-    b'%PDF': '.pdf',
+    b"\x89PNG\r\n\x1a\n": ".png",
+    b"\xff\xd8\xff": ".jpg",
+    b"GIF87a": ".gif",
+    b"GIF89a": ".gif",
+    b"RIFF": ".webp",  # RIFF....WEBP
+    b"%PDF": ".pdf",
 }
 
 _MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
@@ -438,8 +446,8 @@ _MAX_IMAGE_BYTES = 20 * 1024 * 1024  # 20 MB
 def _detect_image_ext(data: bytes) -> str | None:
     """Return file extension if *data* starts with a known image signature."""
     for sig, ext in _IMAGE_SIGNATURES.items():
-        if data[:len(sig)] == sig:
-            if sig == b'RIFF' and data[8:12] != b'WEBP':
+        if data[: len(sig)] == sig:
+            if sig == b"RIFF" and data[8:12] != b"WEBP":
                 return None
             return ext
     return None
@@ -456,8 +464,8 @@ def _download_image(src: str, output_dir: Path, use_playwright: bool = False) ->
     url_hash = hashlib.md5(src.encode()).hexdigest()[:12]
     parsed = urlparse(src)
     url_ext = Path(parsed.path).suffix.lower()
-    if url_ext not in ('.jpg', '.jpeg', '.png', '.gif', '.webp', '.pdf'):
-        url_ext = '.jpg'
+    if url_ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"):
+        url_ext = ".jpg"
 
     filename = f"img_{url_hash}{url_ext}"
     dest = output_dir / filename
@@ -489,8 +497,7 @@ def _download_image(src: str, output_dir: Path, use_playwright: bool = False) ->
                     if _detect_image_ext(body) is None:
                         body = None
             except Exception as exc:
-                print(f"[web_image_extractor] Playwright download failed for {src}: {exc}",
-                      file=sys.stderr)
+                print(f"[web_image_extractor] Playwright download failed for {src}: {exc}", file=sys.stderr)
 
     if body is None or len(body) > _MAX_IMAGE_BYTES:
         return None
@@ -529,13 +536,13 @@ def _download_extracted_images(
         else:
             img["local_path"] = None
 
-    print(f"[web_image_extractor]   Downloaded {downloaded}/{len(images)} images",
-          file=sys.stderr)
+    print(f"[web_image_extractor]   Downloaded {downloaded}/{len(images)} images", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def extract_images(url: str, timeout: int = _TIMEOUT, output_dir: str | None = None) -> dict:
     """Fetch a URL and extract all content images with context.
@@ -581,12 +588,14 @@ def extract_images(url: str, timeout: int = _TIMEOUT, output_dir: str | None = N
         heading = _find_preceding_heading(element) if element else ""
         context = _find_context_text(element) if element else ""
 
-        images.append({
-            "src": src,
-            "alt": entry["alt"],
-            "context_heading": heading,
-            "context_text": context,
-        })
+        images.append(
+            {
+                "src": src,
+                "alt": entry["alt"],
+                "context_heading": heading,
+                "context_text": context,
+            }
+        )
 
     if output_dir and images:
         _download_extracted_images(images, Path(output_dir), use_playwright=pw_was_used)
@@ -620,6 +629,7 @@ def extract_images_from_urls(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main():
     raw_args = sys.argv[1:]
 
@@ -628,7 +638,7 @@ def main():
         idx = raw_args.index("--output-dir")
         if idx + 1 < len(raw_args):
             output_dir = raw_args[idx + 1]
-            raw_args = raw_args[:idx] + raw_args[idx + 2:]
+            raw_args = raw_args[:idx] + raw_args[idx + 2 :]
         else:
             print("Error: --output-dir requires a path argument", file=sys.stderr)
             sys.exit(1)

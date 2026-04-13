@@ -1,15 +1,16 @@
 import os
 
 from langchain_mistralai import ChatMistralAI
+from LLMs.api_keys import get_random_key, parse_api_keys
 from pydantic import PrivateAttr, SecretStr
 from tenacity import retry, stop_after_attempt, wait_exponential
-
-from LLMs.api_keys import get_random_key, mask_key, parse_api_keys
 
 
 def _log_retry(retry_state):
     """Log retry attempts to console."""
-    print(f"[Mistral] Retrying call (attempt {retry_state.attempt_number}) after error: {retry_state.outcome.exception()}")
+    print(
+        f"[Mistral] Retrying call (attempt {retry_state.attempt_number}) after error: {retry_state.outcome.exception()}"
+    )
 
 
 class ChatMistral(ChatMistralAI):
@@ -27,11 +28,12 @@ class ChatMistral(ChatMistralAI):
             stop=stop_after_attempt(10),
             wait=wait_exponential(multiplier=10, min=10, max=500),
             reraise=True,
-            before_sleep=_log_retry
+            before_sleep=_log_retry,
         )
         def _call():
             self._rotate_api_key()
             return super(ChatMistral, self)._generate(*args, **kwargs)
+
         return _call()
 
     async def _agenerate(self, *args, **kwargs):
@@ -39,11 +41,12 @@ class ChatMistral(ChatMistralAI):
             stop=stop_after_attempt(10),
             wait=wait_exponential(multiplier=10, min=10, max=500),
             reraise=True,
-            before_sleep=_log_retry
+            before_sleep=_log_retry,
         )
         async def _acall():
             self._rotate_api_key()
             return await super(ChatMistral, self)._agenerate(*args, **kwargs)
+
         return await _acall()
 
 
@@ -57,11 +60,7 @@ def build_mistral_chat_model(
     model = model_name or os.getenv("MISTRAL_MODEL_NAME")
     if not model:
         raise ValueError("MISTRAL_MODEL_NAME environment variable must be set")
-    raw_key = (
-        kwargs.pop("mistral_api_key", None)
-        or kwargs.pop("api_key", None)
-        or os.getenv("MISTRAL_API_KEY")
-    )
+    raw_key = kwargs.pop("mistral_api_key", None) or kwargs.pop("api_key", None) or os.getenv("MISTRAL_API_KEY")
     api_keys = parse_api_keys(raw_key)
 
     client = ChatMistral(

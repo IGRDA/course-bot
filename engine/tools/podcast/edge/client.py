@@ -8,11 +8,9 @@ import asyncio
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 # Voice configurations for Edge TTS
 # Format: {language_code: {role: voice_name}}
@@ -58,31 +56,55 @@ EDGE_VOICE_MAP = {
 # All available Edge TTS voices (subset of most common ones)
 EDGE_VOICES = {
     "en": [
-        "en-US-GuyNeural", "en-US-JennyNeural", "en-US-AriaNeural",
-        "en-US-DavisNeural", "en-US-AmberNeural", "en-US-AnaNeural",
-        "en-US-AndrewNeural", "en-US-EmmaNeural", "en-US-BrianNeural",
-        "en-GB-RyanNeural", "en-GB-SoniaNeural", "en-GB-LibbyNeural",
-        "en-AU-WilliamNeural", "en-AU-NatashaNeural",
+        "en-US-GuyNeural",
+        "en-US-JennyNeural",
+        "en-US-AriaNeural",
+        "en-US-DavisNeural",
+        "en-US-AmberNeural",
+        "en-US-AnaNeural",
+        "en-US-AndrewNeural",
+        "en-US-EmmaNeural",
+        "en-US-BrianNeural",
+        "en-GB-RyanNeural",
+        "en-GB-SoniaNeural",
+        "en-GB-LibbyNeural",
+        "en-AU-WilliamNeural",
+        "en-AU-NatashaNeural",
     ],
     "es": [
-        "es-ES-AlvaroNeural", "es-ES-ElviraNeural", "es-ES-XimenaNeural",
-        "es-MX-DaliaNeural", "es-MX-JorgeNeural",
-        "es-AR-ElenaNeural", "es-AR-TomasNeural",
+        "es-ES-AlvaroNeural",
+        "es-ES-ElviraNeural",
+        "es-ES-XimenaNeural",
+        "es-MX-DaliaNeural",
+        "es-MX-JorgeNeural",
+        "es-AR-ElenaNeural",
+        "es-AR-TomasNeural",
     ],
     "fr": [
-        "fr-FR-HenriNeural", "fr-FR-DeniseNeural", "fr-FR-AlainNeural",
-        "fr-CA-AntoineNeural", "fr-CA-SylvieNeural",
+        "fr-FR-HenriNeural",
+        "fr-FR-DeniseNeural",
+        "fr-FR-AlainNeural",
+        "fr-CA-AntoineNeural",
+        "fr-CA-SylvieNeural",
     ],
     "de": [
-        "de-DE-ConradNeural", "de-DE-KatjaNeural", "de-DE-AmalaNeural",
-        "de-AT-JonasNeural", "de-AT-IngridNeural",
+        "de-DE-ConradNeural",
+        "de-DE-KatjaNeural",
+        "de-DE-AmalaNeural",
+        "de-AT-JonasNeural",
+        "de-AT-IngridNeural",
     ],
     "it": [
-        "it-IT-DiegoNeural", "it-IT-ElsaNeural", "it-IT-IsabellaNeural",
+        "it-IT-DiegoNeural",
+        "it-IT-ElsaNeural",
+        "it-IT-IsabellaNeural",
     ],
     "pt": [
-        "pt-BR-AntonioNeural", "pt-BR-FranciscaNeural", "pt-BR-ThalitaNeural",
-        "pt-PT-DuarteNeural", "pt-PT-RaquelNeural",
+        "pt-BR-AntonioNeural",
+        "pt-BR-FranciscaNeural",
+        "pt-BR-ThalitaNeural",
+        "pt-PT-DuarteNeural",
+        "pt-PT-RaquelNeural",
     ],
 }
 
@@ -97,7 +119,7 @@ class EdgeTTSEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str]] = None,
+        speaker_map: dict[str, str] | None = None,
     ):
         """Initialize the Edge TTS engine.
 
@@ -156,7 +178,7 @@ class EdgeTTSEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to audio.
 
@@ -171,11 +193,13 @@ class EdgeTTSEngine(BaseTTSEngine):
         voice = self.get_speaker_for_role(message.role)
 
         # Run async synthesis
-        asyncio.run(self._synthesize_async(
-            text=message.content,
-            voice=voice,
-            output_path=output_path,
-        ))
+        asyncio.run(
+            self._synthesize_async(
+                text=message.content,
+                voice=voice,
+                output_path=output_path,
+            )
+        )
 
         return output_path
 
@@ -183,9 +207,9 @@ class EdgeTTSEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -267,6 +291,7 @@ class EdgeTTSEngine(BaseTTSEngine):
             List of voice dictionaries with name, language, gender info
         """
         import edge_tts
+
         voices = await edge_tts.list_voices()
         return voices
 
@@ -284,16 +309,16 @@ def generate_podcast_edge(
     conversation: list[dict],
     output_path: str,
     language: str = "en",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,
@@ -325,7 +350,7 @@ def generate_podcast_edge(
     Returns:
         Path to the generated audio file
     """
-    from ..audio_utils import add_metadata, add_background_music
+    from ..audio_utils import add_background_music, add_metadata
     from ..models import Conversation as ConvModel
 
     # Convert dict list to Conversation object

@@ -9,10 +9,10 @@ from typing import Any
 
 from bot.webhook.types import EventHandlerOption, EventRegistration, FilterFunc
 
-
 # ---------------------------------------------------------------------------
 # AppMention filters
 # ---------------------------------------------------------------------------
+
 
 def skip_bot_mentions() -> EventHandlerOption:
     """Skip app_mention events from bots."""
@@ -78,6 +78,7 @@ def mention_in_channel(*channel_ids: str) -> EventHandlerOption:
 # Message filters
 # ---------------------------------------------------------------------------
 
+
 def direct_message_only() -> EventHandlerOption:
     """Only process messages with channel_type 'im' (direct messages)."""
 
@@ -140,6 +141,7 @@ def message_in_channel(*channel_ids: str) -> EventHandlerOption:
 # Reaction filters
 # ---------------------------------------------------------------------------
 
+
 def reaction_is(emoji: str) -> EventHandlerOption:
     """Only process reaction events for a specific emoji."""
 
@@ -157,6 +159,7 @@ def reaction_is(emoji: str) -> EventHandlerOption:
 # ---------------------------------------------------------------------------
 # MemberJoinedChannel filters
 # ---------------------------------------------------------------------------
+
 
 def joined_by_user(user_id: str) -> EventHandlerOption:
     """Only process member_joined_channel events for a specific user."""

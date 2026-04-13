@@ -10,11 +10,9 @@ https://huggingface.co/ResembleAI/chatterbox
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 # =============================================================================
 # Editable defaults for emotion control
@@ -75,7 +73,7 @@ class ChatterboxEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str]] = None,
+        speaker_map: dict[str, str] | None = None,
         device: str = "cuda",
         exaggeration: float = DEFAULT_EXAGGERATION,
         cfg_weight: float = DEFAULT_CFG_WEIGHT,
@@ -94,10 +92,7 @@ class ChatterboxEngine(BaseTTSEngine):
         # Validate language
         if language not in CHATTERBOX_LANGUAGES:
             available = ", ".join(sorted(CHATTERBOX_LANGUAGES.keys()))
-            raise ValueError(
-                f"Unsupported language '{language}'. "
-                f"Available: {available}"
-            )
+            raise ValueError(f"Unsupported language '{language}'. Available: {available}")
 
         self.device = device
         self.exaggeration = exaggeration
@@ -165,7 +160,7 @@ class ChatterboxEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to audio.
 
@@ -220,9 +215,9 @@ class ChatterboxEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -315,19 +310,19 @@ def generate_podcast_chatterbox(
     conversation: list[dict],
     output_path: str,
     language: str = "es",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
     device: str = "mps",
     exaggeration: float = 0.5,
     cfg_weight: float = 0.5,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,
@@ -362,7 +357,7 @@ def generate_podcast_chatterbox(
     Returns:
         Path to the generated audio file
     """
-    from ..audio_utils import add_metadata, add_background_music
+    from ..audio_utils import add_background_music, add_metadata
     from ..models import Conversation as ConvModel
 
     # Convert dict list to Conversation object

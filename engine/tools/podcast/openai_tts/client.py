@@ -9,11 +9,9 @@ Requires an API key (OPENAI_API_KEY env var) and internet connection.
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 # Default voice assignments per language.
 # gpt-4o-mini-tts supports all 13 built-in voices for every language.
@@ -53,8 +51,19 @@ OPENAI_TTS_INSTRUCTIONS: dict[str, str] = {
 
 # All 13 built-in voices available in gpt-4o-mini-tts
 OPENAI_TTS_ALL_VOICES = [
-    "alloy", "ash", "ballad", "coral", "echo", "fable",
-    "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar",
+    "alloy",
+    "ash",
+    "ballad",
+    "coral",
+    "echo",
+    "fable",
+    "nova",
+    "onyx",
+    "sage",
+    "shimmer",
+    "verse",
+    "marin",
+    "cedar",
 ]
 
 
@@ -69,10 +78,10 @@ class OpenAITTSEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str]] = None,
+        speaker_map: dict[str, str] | None = None,
         model: str = "gpt-4o-mini-tts",
-        api_key: Optional[str] = None,
-        instructions: Optional[str] = None,
+        api_key: str | None = None,
+        instructions: str | None = None,
     ):
         """Initialize the OpenAI TTS engine.
 
@@ -89,19 +98,12 @@ class OpenAITTSEngine(BaseTTSEngine):
         self.model = model
         self.api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError(
-                "OpenAI API key required. Set OPENAI_API_KEY env var "
-                "or pass api_key parameter."
-            )
+            raise ValueError("OpenAI API key required. Set OPENAI_API_KEY env var or pass api_key parameter.")
 
-        self.instructions = instructions or OPENAI_TTS_INSTRUCTIONS.get(
-            language, OPENAI_TTS_INSTRUCTIONS["en"]
-        )
+        self.instructions = instructions or OPENAI_TTS_INSTRUCTIONS.get(language, OPENAI_TTS_INSTRUCTIONS["en"])
 
         if not self.speaker_map:
-            self.speaker_map = OPENAI_TTS_VOICE_MAP.get(
-                language, OPENAI_TTS_VOICE_MAP["en"]
-            ).copy()
+            self.speaker_map = OPENAI_TTS_VOICE_MAP.get(language, OPENAI_TTS_VOICE_MAP["en"]).copy()
 
         self._client = None
 
@@ -110,6 +112,7 @@ class OpenAITTSEngine(BaseTTSEngine):
         """Lazy-initialise the OpenAI client."""
         if self._client is None:
             from openai import OpenAI
+
             self._client = OpenAI(api_key=self.api_key)
         return self._client
 
@@ -134,7 +137,7 @@ class OpenAITTSEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to an MP3 file via OpenAI TTS API.
 
@@ -165,9 +168,9 @@ class OpenAITTSEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -242,20 +245,20 @@ def generate_podcast_openai_tts(
     conversation: list[dict],
     output_path: str,
     language: str = "en",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     # OpenAI-specific
     model: str = "gpt-4o-mini-tts",
-    api_key: Optional[str] = None,
-    instructions: Optional[str] = None,
+    api_key: str | None = None,
+    instructions: str | None = None,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,

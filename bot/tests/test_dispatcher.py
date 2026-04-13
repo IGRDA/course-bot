@@ -39,7 +39,7 @@ class TestCheckAvailability:
 
     def test_blocks_at_max_capacity(self, dispatcher):
         running = []
-        for i in range(5):
+        for _i in range(5):
             exe = MagicMock()
             exe.completion_time = None
             exe.template.containers = []
@@ -83,7 +83,7 @@ class TestCheckAvailability:
 
         dispatcher._executions_client.list_executions.return_value = [exe]
 
-        available, reason = dispatcher.check_availability("C123:1234.5678")
+        available, _reason = dispatcher.check_availability("C123:1234.5678")
         assert available is True
 
     def test_ignores_completed_executions(self, dispatcher):
@@ -105,10 +105,8 @@ class TestCheckAvailability:
 class TestDispatch:
     def test_creates_execution_with_correct_payload(self):
         """Test dispatch without patching run_v2 — uses real types."""
-        from google.cloud import run_v2
 
-        with patch("bot.job.dispatcher.run_v2.JobsClient"), \
-             patch("bot.job.dispatcher.run_v2.ExecutionsClient"):
+        with patch("bot.job.dispatcher.run_v2.JobsClient"), patch("bot.job.dispatcher.run_v2.ExecutionsClient"):
             dispatcher = JobDispatcher(
                 project_id="test-project",
                 region="europe-west1",
@@ -133,10 +131,7 @@ class TestDispatch:
         overrides = request.overrides
         assert overrides.task_count == 1
 
-        env_dict = {
-            e.name: e.value
-            for e in overrides.container_overrides[0].env
-        }
+        env_dict = {e.name: e.value for e in overrides.container_overrides[0].env}
         assert THREAD_KEY_ENV in env_dict
         assert env_dict[THREAD_KEY_ENV] == "C123:1234.5678"
 

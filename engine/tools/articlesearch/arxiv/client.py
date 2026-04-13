@@ -13,7 +13,6 @@ import re
 import time
 import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING
-from urllib.parse import urlencode
 
 import requests
 
@@ -39,25 +38,25 @@ _MIN_REQUEST_INTERVAL = 3.0
 def _rate_limit() -> None:
     """Enforce rate limiting for arXiv API."""
     global _last_request_time
-    
+
     current_time = time.time()
     elapsed = current_time - _last_request_time
-    
+
     if elapsed < _MIN_REQUEST_INTERVAL:
         sleep_time = _MIN_REQUEST_INTERVAL - elapsed
         logger.debug(f"Rate limiting: sleeping {sleep_time:.2f}s")
         time.sleep(sleep_time)
-    
+
     _last_request_time = time.time()
 
 
 def _extract_arxiv_id(id_url: str) -> str:
     """
     Extract arXiv ID from full URL.
-    
+
     Args:
         id_url: Full arXiv URL (e.g., http://arxiv.org/abs/2301.00001v1)
-        
+
     Returns:
         arXiv ID (e.g., 2301.00001)
     """
@@ -71,10 +70,10 @@ def _extract_arxiv_id(id_url: str) -> str:
 def _extract_doi(entry: ET.Element) -> str | None:
     """
     Extract DOI from arXiv entry if available.
-    
+
     Args:
         entry: XML entry element
-        
+
     Returns:
         DOI string or None
     """
@@ -87,10 +86,10 @@ def _extract_doi(entry: ET.Element) -> str | None:
 def _extract_authors(entry: ET.Element) -> list[str]:
     """
     Extract author names from arXiv entry.
-    
+
     Args:
         entry: XML entry element
-        
+
     Returns:
         List of author names
     """
@@ -105,10 +104,10 @@ def _extract_authors(entry: ET.Element) -> list[str]:
 def _extract_year(published: str | None) -> int | None:
     """
     Extract year from published date string.
-    
+
     Args:
         published: ISO date string (e.g., 2023-01-15T12:00:00Z)
-        
+
     Returns:
         Year as integer or None
     """
@@ -123,10 +122,10 @@ def _extract_year(published: str | None) -> int | None:
 def _extract_categories(entry: ET.Element) -> str | None:
     """
     Extract primary category as venue-like field.
-    
+
     Args:
         entry: XML entry element
-        
+
     Returns:
         Primary category (e.g., "cs.LG") or None
     """
@@ -139,11 +138,11 @@ def _extract_categories(entry: ET.Element) -> str | None:
 def _truncate_abstract(abstract: str | None, max_length: int = 300) -> str | None:
     """
     Truncate abstract for snippet display.
-    
+
     Args:
         abstract: Full abstract text
         max_length: Maximum length for snippet
-        
+
     Returns:
         Truncated abstract or None
     """
@@ -170,29 +169,26 @@ def search_articles(
 ) -> list["ArticleResult"]:
     """
     Search arXiv for preprint papers.
-    
+
     Note: arXiv content is primarily in English. The language parameter
     is accepted for API compatibility but ignored.
-    
+
     Args:
         query: Search query string
         max_results: Maximum number of results to return (max 100 recommended)
         language: Not supported - arXiv is English-only
-        
+
     Returns:
         List of ArticleResult dictionaries with paper metadata
     """
     from ..factory import ArticleResult
-    
+
     if language and language.lower() != "en":
-        logger.debug(
-            "arXiv primarily contains English papers. "
-            "Consider using OpenAlex for other languages."
-        )
-    
+        logger.debug("arXiv primarily contains English papers. Consider using OpenAlex for other languages.")
+
     # Enforce rate limiting
     _rate_limit()
-    
+
     # Build query parameters
     # arXiv uses a specific query syntax
     params = {
@@ -202,7 +198,7 @@ def search_articles(
         "sortBy": "relevance",
         "sortOrder": "descending",
     }
-    
+
     try:
         response = requests.get(
             SEARCH_URL,
@@ -213,45 +209,45 @@ def search_articles(
     except requests.RequestException as e:
         logger.error(f"arXiv search failed: {e}")
         return []
-    
+
     # Parse XML response
     try:
         root = ET.fromstring(response.content)
     except ET.ParseError as e:
         logger.error(f"Failed to parse arXiv response: {e}")
         return []
-    
+
     results: list[ArticleResult] = []
-    
+
     for entry in root.findall("atom:entry", NAMESPACES):
         # Extract title
         title_elem = entry.find("atom:title", NAMESPACES)
         title = _clean_text(title_elem.text) if title_elem is not None else None
         if not title:
             continue
-        
+
         # Extract other fields
         id_elem = entry.find("atom:id", NAMESPACES)
         id_url = id_elem.text if id_elem is not None else ""
         arxiv_id = _extract_arxiv_id(id_url)
-        
+
         summary_elem = entry.find("atom:summary", NAMESPACES)
         abstract = _clean_text(summary_elem.text) if summary_elem is not None else None
-        
+
         published_elem = entry.find("atom:published", NAMESPACES)
         published = published_elem.text if published_elem is not None else None
-        
+
         doi = _extract_doi(entry)
         authors = _extract_authors(entry)
         year = _extract_year(published)
         category = _extract_categories(entry)
-        
+
         # Build URL (prefer DOI if available)
         if doi:
             url = f"https://doi.org/{doi}"
         else:
             url = f"https://arxiv.org/abs/{arxiv_id}"
-        
+
         result: ArticleResult = {
             "title": title,
             "authors": authors,
@@ -266,7 +262,7 @@ def search_articles(
             "snippet": _truncate_abstract(abstract),
         }
         results.append(result)
-    
+
     return results
 
 
@@ -275,13 +271,12 @@ if __name__ == "__main__":
     query = "neural network"
     print(f"🔍 Searching arXiv for: '{query}'")
     print("-" * 60)
-    
+
     results = search_articles(query, max_results=3)
-    
+
     for i, article in enumerate(results, 1):
         print(f"\n{i}. {article['title']}")
         print(f"   Authors: {', '.join(article['authors'][:3])}")
         print(f"   Year: {article['year']}")
         print(f"   Venue: {article['venue']}")
         print(f"   URL: {article['url']}")
-

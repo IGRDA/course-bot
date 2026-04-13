@@ -24,13 +24,13 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 
 from tools.web_image_extractor.extractor import (
+    _download_extracted_images,
     _extract_background_images,
     _extract_img_tags,
     _extract_picture_sources,
     _fetch_html,
     _find_context_text,
     _find_preceding_heading,
-    _download_extracted_images,
 )
 
 _LOG_PREFIX = "[web_scraper]"
@@ -40,30 +40,75 @@ _LOG_PREFIX = "[web_scraper]"
 # ---------------------------------------------------------------------------
 
 _SKIP_EXTENSIONS = {
-    ".pdf", ".zip", ".gz", ".tar", ".rar", ".7z",
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico",
-    ".mp3", ".mp4", ".avi", ".mov", ".wmv", ".flv",
-    ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-    ".css", ".js", ".xml", ".json", ".rss",
+    ".pdf",
+    ".zip",
+    ".gz",
+    ".tar",
+    ".rar",
+    ".7z",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".svg",
+    ".ico",
+    ".mp3",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".css",
+    ".js",
+    ".xml",
+    ".json",
+    ".rss",
 }
 
 _SKIP_PATH_PATTERNS = {
-    "/wp-admin", "/wp-login", "/wp-json", "/xmlrpc",
-    "/feed", "/cart", "/checkout", "/my-account",
-    "/login", "/register", "/signup", "/signin",
-    "/search", "/tag/", "/author/",
+    "/wp-admin",
+    "/wp-login",
+    "/wp-json",
+    "/xmlrpc",
+    "/feed",
+    "/cart",
+    "/checkout",
+    "/my-account",
+    "/login",
+    "/register",
+    "/signup",
+    "/signin",
+    "/search",
+    "/tag/",
+    "/author/",
 }
 
 _SKIP_PATH_EXACT = {
-    "/aviso-legal", "/aviso-legal/",
-    "/politica-de-privacidad", "/politica-de-privacidad/",
-    "/politica-de-cookies", "/politica-de-cookies/",
-    "/privacy-policy", "/privacy-policy/",
-    "/cookie-policy", "/cookie-policy/",
-    "/terms-of-service", "/terms-of-service/",
-    "/terms-and-conditions", "/terms-and-conditions/",
-    "/legal", "/legal/",
-    "/impressum", "/impressum/",
+    "/aviso-legal",
+    "/aviso-legal/",
+    "/politica-de-privacidad",
+    "/politica-de-privacidad/",
+    "/politica-de-cookies",
+    "/politica-de-cookies/",
+    "/privacy-policy",
+    "/privacy-policy/",
+    "/cookie-policy",
+    "/cookie-policy/",
+    "/terms-of-service",
+    "/terms-of-service/",
+    "/terms-and-conditions",
+    "/terms-and-conditions/",
+    "/legal",
+    "/legal/",
+    "/impressum",
+    "/impressum/",
 }
 
 
@@ -88,10 +133,7 @@ def _should_skip_url(url: str) -> bool:
         if pattern in path:
             return True
 
-    if path in _SKIP_PATH_EXACT or path.rstrip("/") in {p.rstrip("/") for p in _SKIP_PATH_EXACT}:
-        return True
-
-    return False
+    return bool(path in _SKIP_PATH_EXACT or path.rstrip("/") in {p.rstrip("/") for p in _SKIP_PATH_EXACT})
 
 
 def _discover_links(html: str, page_url: str, root_domain: str) -> list[str]:
@@ -187,6 +229,7 @@ def _extract_page_content(html: str) -> dict:
 # Image extraction (wraps web_image_extractor methods)
 # ---------------------------------------------------------------------------
 
+
 def _extract_page_images(html: str, page_url: str) -> list[dict]:
     """Extract all content images from a page's HTML with context metadata."""
     soup = BeautifulSoup(html, "html.parser")
@@ -209,12 +252,14 @@ def _extract_page_images(html: str, page_url: str) -> list[dict]:
         heading = _find_preceding_heading(element) if element else ""
         context = _find_context_text(element) if element else ""
 
-        images.append({
-            "src": src,
-            "alt": entry["alt"],
-            "context_heading": heading,
-            "context_text": context,
-        })
+        images.append(
+            {
+                "src": src,
+                "alt": entry["alt"],
+                "context_heading": heading,
+                "context_text": context,
+            }
+        )
 
     return images
 
@@ -222,6 +267,7 @@ def _extract_page_images(html: str, page_url: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Orchestrator
 # ---------------------------------------------------------------------------
+
 
 def scrape_website(
     url: str,
@@ -330,18 +376,16 @@ def scrape_website(
 
     if output_dir and unique_images:
         import tools.web_image_extractor.extractor as _wie
+
         pw_was_used = _wie._pw_context is not None
         print(
-            f"{_LOG_PREFIX} Downloading {len(unique_images)} unique images "
-            f"to {output_dir} ...",
+            f"{_LOG_PREFIX} Downloading {len(unique_images)} unique images to {output_dir} ...",
             file=sys.stderr,
         )
         _download_extracted_images(unique_images, Path(output_dir), use_playwright=pw_was_used)
 
         # Propagate local_path back to per-page image entries
-        src_to_path: dict[str, str | None] = {
-            img["src"]: img.get("local_path") for img in unique_images
-        }
+        src_to_path: dict[str, str | None] = {img["src"]: img.get("local_path") for img in unique_images}
         for page in result["pages"]:
             for img in page["images"]:
                 img["local_path"] = src_to_path.get(img["src"])
@@ -353,8 +397,7 @@ def scrape_website(
     result["total_images"] = len(unique_images)
 
     print(
-        f"{_LOG_PREFIX} Done: {result['pages_fetched']} pages, "
-        f"{result['total_images']} unique images",
+        f"{_LOG_PREFIX} Done: {result['pages_fetched']} pages, {result['total_images']} unique images",
         file=sys.stderr,
     )
 
@@ -364,6 +407,7 @@ def scrape_website(
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def main():
     import argparse
@@ -380,19 +424,27 @@ def main():
         help="Download images to this directory and include local_path in output",
     )
     parser.add_argument(
-        "--max-pages", type=int, default=20,
+        "--max-pages",
+        type=int,
+        default=20,
         help="Max child pages to fetch (default: 20)",
     )
     parser.add_argument(
-        "--max-depth", type=int, default=1,
+        "--max-depth",
+        type=int,
+        default=1,
         help="Crawl depth from root (default: 1)",
     )
     parser.add_argument(
-        "--timeout", type=int, default=15,
+        "--timeout",
+        type=int,
+        default=15,
         help="Per-page HTTP timeout in seconds (default: 15)",
     )
     parser.add_argument(
-        "--delay", type=float, default=2.0,
+        "--delay",
+        type=float,
+        default=2.0,
         help="Seconds between page fetches (default: 2.0)",
     )
     args = parser.parse_args()

@@ -8,14 +8,14 @@ Provides LangGraph nodes:
 - inject_local_images_node: places local images into ParagraphBlocks after HTML formatting
 """
 
-import shutil
 import logging
+import shutil
 from pathlib import Path
-from typing import Optional
 
 from langchain_core.runnables import RunnableConfig
 
 from workflows.state import CourseState, ParagraphBlock
+
 from .utils import get_output_manager
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 # Node 1: Parse markdown folder
 # ---------------------------------------------------------------------------
 
-def parse_markdown_folder_node(state: CourseState, config: Optional[RunnableConfig] = None) -> CourseState:
+
+def parse_markdown_folder_node(state: CourseState, config: RunnableConfig | None = None) -> CourseState:
     """Parse a local folder of markdown files into the course skeleton.
 
     Reads ``state.config.md_source_path``, builds modules/submodules/sections
@@ -52,8 +53,7 @@ def parse_markdown_folder_node(state: CourseState, config: Optional[RunnableConf
 
     total_sections = sum(len(s.sections) for m in state.modules for s in m.submodules)
     total_images = sum(
-        len(sec.source_images or [])
-        for m in state.modules for sm in m.submodules for sec in sm.sections
+        len(sec.source_images or []) for m in state.modules for sm in m.submodules for sec in sm.sections
     )
     print(f"   Modules: {len(state.modules)}")
     print(f"   Total sections: {total_sections}")
@@ -70,7 +70,8 @@ def parse_markdown_folder_node(state: CourseState, config: Optional[RunnableConf
 # Node 1.5: Structure validation and auto-split
 # ---------------------------------------------------------------------------
 
-def validate_structure_node(state: CourseState, config: Optional[RunnableConfig] = None) -> CourseState:
+
+def validate_structure_node(state: CourseState, config: RunnableConfig | None = None) -> CourseState:
     """Check parsed structure and re-split oversized modules via LLM.
 
     When the parser produces a pathological structure (e.g. a single module
@@ -95,7 +96,8 @@ def validate_structure_node(state: CourseState, config: Optional[RunnableConfig]
 # Node 2: LLM-assisted restructuring
 # ---------------------------------------------------------------------------
 
-def restructure_parsed_content_node(state: CourseState, config: Optional[RunnableConfig] = None) -> CourseState:
+
+def restructure_parsed_content_node(state: CourseState, config: RunnableConfig | None = None) -> CourseState:
     """Validate and improve the parsed module structure using an LLM.
 
     Generates descriptive titles when originals are generic, writes module
@@ -118,7 +120,7 @@ def restructure_parsed_content_node(state: CourseState, config: Optional[Runnabl
     return state
 
 
-def detect_language_node(state: CourseState, config: Optional[RunnableConfig] = None) -> CourseState:
+def detect_language_node(state: CourseState, config: RunnableConfig | None = None) -> CourseState:
     """Lightweight language detection without LLM (used when restructuring is skipped)."""
     from agents.md_digitalizer.restructurer import detect_content_language
 
@@ -133,6 +135,7 @@ def detect_language_node(state: CourseState, config: Optional[RunnableConfig] = 
 # ---------------------------------------------------------------------------
 # Node 3: Inject local images into ParagraphBlocks
 # ---------------------------------------------------------------------------
+
 
 def _extract_text_from_element(element) -> str:
     """Recursively extract plain text from an HtmlElement."""
@@ -184,9 +187,7 @@ def _collect_paragraph_blocks(section) -> list[tuple[int, int, ParagraphBlock]]:
         content = element.content
         if isinstance(content, list):
             for b_idx, item in enumerate(content):
-                if isinstance(item, ParagraphBlock):
-                    blocks.append((e_idx, b_idx, item))
-                elif isinstance(item, dict) and "title" in item:
+                if isinstance(item, ParagraphBlock) or (isinstance(item, dict) and "title" in item):
                     blocks.append((e_idx, b_idx, item))
     return blocks
 
@@ -201,7 +202,7 @@ def _block_has_image(block) -> bool:
     return False
 
 
-def inject_local_images_node(state: CourseState, config: Optional[RunnableConfig] = None) -> CourseState:
+def inject_local_images_node(state: CourseState, config: RunnableConfig | None = None) -> CourseState:
     """Place local images from ``source_images`` into ParagraphBlocks.
 
     Runs AFTER ``generate_images`` (internet search).  For each section that
@@ -239,8 +240,7 @@ def inject_local_images_node(state: CourseState, config: Optional[RunnableConfig
                     continue
 
                 block_texts = [
-                    _extract_text_from_block(b) if isinstance(b, ParagraphBlock)
-                    else b.get("title", "")
+                    _extract_text_from_block(b) if isinstance(b, ParagraphBlock) else b.get("title", "")
                     for (_, _, b) in blocks
                 ]
 

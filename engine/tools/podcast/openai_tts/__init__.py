@@ -7,6 +7,7 @@ Imports are lazy so that the openai SDK is only loaded when used.
 def __getattr__(name: str):
     if name in ("OPENAI_TTS_VOICE_MAP", "OpenAITTSEngine", "generate_podcast_openai_tts"):
         from .client import OPENAI_TTS_VOICE_MAP, OpenAITTSEngine, generate_podcast_openai_tts
+
         _map = {
             "OPENAI_TTS_VOICE_MAP": OPENAI_TTS_VOICE_MAP,
             "OpenAITTSEngine": OpenAITTSEngine,

@@ -2,18 +2,17 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from bot.job.dispatcher import JobDispatcher
-from bot.slack.webhook_handler import SlackWebhookHandler, new_bot_webhook
+from bot.slack.webhook_handler import new_bot_webhook
 
 
 def _make_signing_secret():
@@ -23,9 +22,14 @@ def _make_signing_secret():
 def _sign_request(body: bytes, secret: str, timestamp: str | None = None) -> dict:
     ts = timestamp or str(int(time.time()))
     sig_basestring = f"v0:{ts}:{body.decode()}"
-    signature = "v0=" + hmac.new(
-        secret.encode(), sig_basestring.encode(), hashlib.sha256,
-    ).hexdigest()
+    signature = (
+        "v0="
+        + hmac.new(
+            secret.encode(),
+            sig_basestring.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+    )
     return {
         "X-Slack-Signature": signature,
         "X-Slack-Request-Timestamp": ts,
@@ -81,10 +85,12 @@ def client(app):
 
 class TestURLVerification:
     def test_url_verification(self, client):
-        body = json.dumps({
-            "type": "url_verification",
-            "challenge": "test_challenge_abc",
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "url_verification",
+                "challenge": "test_challenge_abc",
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp = client.post("/slack/events", content=body, headers=headers)
@@ -94,11 +100,13 @@ class TestURLVerification:
 
 class TestEventDedup:
     def test_duplicate_event_is_skipped(self, client):
-        body = json.dumps({
-            "type": "event_callback",
-            "event_id": "Ev_dedup_test",
-            "event": {"type": "reaction_added", "reaction": "thumbsup", "user": "U123"},
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "event_callback",
+                "event_id": "Ev_dedup_test",
+                "event": {"type": "reaction_added", "reaction": "thumbsup", "user": "U123"},
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp1 = client.post("/slack/events", content=body, headers=headers)
@@ -113,17 +121,19 @@ class TestEventDedup:
 
 class TestJobDispatch:
     def test_app_mention_dispatches_job(self, client, mock_dispatcher):
-        body = json.dumps({
-            "type": "event_callback",
-            "event_id": "Ev_mention_1",
-            "event": {
-                "type": "app_mention",
-                "channel": "C123",
-                "ts": "1234.5678",
-                "text": "<@U_BOT> hello",
-                "user": "U_USER",
-            },
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "event_callback",
+                "event_id": "Ev_mention_1",
+                "event": {
+                    "type": "app_mention",
+                    "channel": "C123",
+                    "ts": "1234.5678",
+                    "text": "<@U_BOT> hello",
+                    "user": "U_USER",
+                },
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp = client.post("/slack/events", content=body, headers=headers)
@@ -133,18 +143,20 @@ class TestJobDispatch:
         mock_dispatcher.dispatch.assert_called_once()
 
     def test_dm_dispatches_job(self, client, mock_dispatcher):
-        body = json.dumps({
-            "type": "event_callback",
-            "event_id": "Ev_dm_1",
-            "event": {
-                "type": "message",
-                "channel": "D999",
-                "channel_type": "im",
-                "ts": "5555.0000",
-                "text": "hi there",
-                "user": "U_USER",
-            },
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "event_callback",
+                "event_id": "Ev_dm_1",
+                "event": {
+                    "type": "message",
+                    "channel": "D999",
+                    "channel_type": "im",
+                    "ts": "5555.0000",
+                    "text": "hi there",
+                    "user": "U_USER",
+                },
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp = client.post("/slack/events", content=body, headers=headers)
@@ -158,17 +170,19 @@ class TestJobDispatch:
             "I'm still processing a previous request in this thread.",
         )
 
-        body = json.dumps({
-            "type": "event_callback",
-            "event_id": "Ev_busy_1",
-            "event": {
-                "type": "app_mention",
-                "channel": "C123",
-                "ts": "9999.0000",
-                "text": "<@U_BOT> hello again",
-                "user": "U_USER",
-            },
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "event_callback",
+                "event_id": "Ev_busy_1",
+                "event": {
+                    "type": "app_mention",
+                    "channel": "C123",
+                    "ts": "9999.0000",
+                    "text": "<@U_BOT> hello again",
+                    "user": "U_USER",
+                },
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp = client.post("/slack/events", content=body, headers=headers)
@@ -182,15 +196,17 @@ class TestJobDispatch:
 
 class TestLightweightEvents:
     def test_reaction_handled_in_process(self, client, mock_dispatcher, mock_provider):
-        body = json.dumps({
-            "type": "event_callback",
-            "event_id": "Ev_reaction_1",
-            "event": {
-                "type": "reaction_added",
-                "reaction": "thumbsup",
-                "user": "U_USER",
-            },
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "event_callback",
+                "event_id": "Ev_reaction_1",
+                "event": {
+                    "type": "reaction_added",
+                    "reaction": "thumbsup",
+                    "user": "U_USER",
+                },
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp = client.post("/slack/events", content=body, headers=headers)
@@ -199,15 +215,17 @@ class TestLightweightEvents:
         mock_dispatcher.dispatch.assert_not_called()
 
     def test_member_joined_handled_in_process(self, client, mock_dispatcher, mock_provider):
-        body = json.dumps({
-            "type": "event_callback",
-            "event_id": "Ev_joined_1",
-            "event": {
-                "type": "member_joined_channel",
-                "channel": "C123",
-                "user": "U_BOT",
-            },
-        }).encode()
+        body = json.dumps(
+            {
+                "type": "event_callback",
+                "event_id": "Ev_joined_1",
+                "event": {
+                    "type": "member_joined_channel",
+                    "channel": "C123",
+                    "user": "U_BOT",
+                },
+            }
+        ).encode()
         headers = _sign_request(body, _make_signing_secret())
 
         resp = client.post("/slack/events", content=body, headers=headers)

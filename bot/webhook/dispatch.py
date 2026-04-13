@@ -127,7 +127,7 @@ async def wait_for_tasks(
 
     pending = list(tasks)
     try:
-        done, still_pending = await asyncio.wait(pending, timeout=timeout)
+        _done, still_pending = await asyncio.wait(pending, timeout=timeout)
         if still_pending:
             logger.warning(
                 "Cancelling %d task(s) that exceeded %.0fs timeout",

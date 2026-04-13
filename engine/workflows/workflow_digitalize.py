@@ -13,25 +13,24 @@ Pipeline:
     -> generate_podcasts -> generate_pdf_book
 """
 
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
-from workflows.state import CourseState, CourseConfig
-from workflows.output_manager import OutputManager
-from workflows.nodes.digitalize import detect_language_node
 from workflows.nodes import (
-    parse_markdown_folder_node,
-    validate_structure_node,
-    restructure_parsed_content_node,
     calculate_metadata_node,
     generate_activities_node,
+    generate_all_enrichments_node,
     generate_html_node,
     generate_images_node,
-    inject_local_images_node,
-    generate_all_enrichments_node,
-    generate_podcasts_node,
     generate_pdf_book_node,
+    generate_podcasts_node,
+    inject_local_images_node,
+    parse_markdown_folder_node,
+    restructure_parsed_content_node,
+    validate_structure_node,
 )
-
+from workflows.nodes.digitalize import detect_language_node
+from workflows.output_manager import OutputManager
+from workflows.state import CourseConfig, CourseState
 
 # ---------------------------------------------------------------------------
 # Conditional wrapper nodes
@@ -57,7 +56,7 @@ def _conditional_restructure_node(state: CourseState, config=None) -> CourseStat
 
 
 def _conditional_activities_node(state: CourseState, config=None) -> CourseState:
-    if not getattr(state.config, 'generate_activities', True):
+    if not getattr(state.config, "generate_activities", True):
         print("Activities generation skipped (--no-activities)")
         return state
     return _original_activities_node(state, config)
@@ -97,6 +96,7 @@ def _conditional_pdf_node(state: CourseState, config=None) -> CourseState:
 # ---------------------------------------------------------------------------
 # Graph builders
 # ---------------------------------------------------------------------------
+
 
 def build_digitalize_graph_conditional():
     """Build the full digitalization graph with conditional nodes.
@@ -163,7 +163,8 @@ Examples:
     )
     # --- Required ---
     parser.add_argument(
-        "--source", required=True,
+        "--source",
+        required=True,
         help="Path to the markdown folder (one .md file per module)",
     )
 
@@ -177,7 +178,8 @@ Examples:
     parser.add_argument("--title", default="", help="Course title (default: derived from folder name)")
     parser.add_argument("--language", default="auto", help="Content language (default: auto-detect from content)")
     parser.add_argument(
-        "--provider", default="mistral",
+        "--provider",
+        default="mistral",
         choices=["mistral", "gemini", "groq", "openai", "deepseek"],
         help="LLM provider (default: mistral)",
     )
@@ -195,7 +197,8 @@ Examples:
     # --- Podcast options ---
     pod = parser.add_argument_group("podcast options")
     pod.add_argument(
-        "--tts-engine", default="qwen_tts_api",
+        "--tts-engine",
+        default="qwen_tts_api",
         choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"],
         help="TTS engine (default: qwen_tts_api)",
     )
@@ -207,6 +210,7 @@ Examples:
         parser.error("Specify at least one output: --html, --podcast, or --pdf")
 
     from LLMs.text2text.health_check import validate_provider_keys
+
     validate_provider_keys(args.provider)
 
     # Set module-level flags so conditional nodes can check them
@@ -278,12 +282,19 @@ Examples:
     output_mgr = OutputManager(title=args.title or "Digitalized_Course")
 
     enabled_outputs = [f for f, v in [("HTML", args.html), ("Podcast", args.podcast), ("PDF", args.pdf)] if v]
-    skipped = [s for s, v in [
-        ("restructure", args.no_restructure), ("activities", args.no_activities),
-        ("images", args.no_images), ("videos", args.no_videos),
-        ("bibliography", args.no_bibliography), ("people", args.no_people),
-        ("mindmap", args.no_mindmap),
-    ] if v]
+    skipped = [
+        s
+        for s, v in [
+            ("restructure", args.no_restructure),
+            ("activities", args.no_activities),
+            ("images", args.no_images),
+            ("videos", args.no_videos),
+            ("bibliography", args.no_bibliography),
+            ("people", args.no_people),
+            ("mindmap", args.no_mindmap),
+        ]
+        if v
+    ]
 
     print(f"Output folder: {output_mgr.get_run_folder()}")
     print(f"Source: {args.source}")
@@ -316,7 +327,7 @@ Examples:
 
         total_sections = sum(len(s.sections) for m in final_state.modules for s in m.submodules)
         modules = final_state.modules
-        print(f"\nCourse Summary:")
+        print("\nCourse Summary:")
         print(f"   Title: {final_state.title}")
         print(f"   Modules: {len(modules)}")
         print(f"   Total Sections: {total_sections}")
@@ -326,9 +337,7 @@ Examples:
         has_bib = sum(1 for m in modules if m.bibliography is not None)
         has_people = sum(1 for m in modules if m.relevant_people)
         has_mindmap = sum(1 for m in modules if m.mindmap is not None)
-        has_summary = sum(
-            1 for m in modules for sm in m.submodules for s in sm.sections if s.summary
-        )
+        has_summary = sum(1 for m in modules for sm in m.submodules for s in sm.sections if s.summary)
 
         if final_state.bibliography:
             print(f"   Bibliography: {len(final_state.bibliography.all_books)} books")

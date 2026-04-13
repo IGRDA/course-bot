@@ -1,19 +1,16 @@
-"""HTTP server with handler registration, health checks, and graceful shutdown.
-
-"""
+"""HTTP server with handler registration, health checks, and graceful shutdown."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import signal
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-
-from bot.slack.webhook_handler import SlackWebhookHandler
 
 logger = logging.getLogger(__name__)
 

@@ -14,17 +14,16 @@ Processes one module at a time to keep LLM context small and costs low.
 """
 
 import json
+import logging
 import os
 import re
-import logging
 import time
-from typing import Optional
 
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-
-from workflows.state import CourseState, Module, Submodule, Section
+from langchain_core.prompts import ChatPromptTemplate
 from LLMs.text2text import create_text_llm, resolve_text_model_name
+
+from workflows.state import CourseState, Module, Section, Submodule
 
 _FALLBACK_PROVIDERS = ["groq", "openai"]
 
@@ -32,9 +31,9 @@ logger = logging.getLogger(__name__)
 
 _NUMBERED_PREFIX_RE = re.compile(
     r"^(?:"
-    r"TEXTO\s+\d+[.\-–—]+\s*"        # "TEXTO N.-" (Spanish textbooks)
-    r"|\d+(?:\.\d+)+[.\-–—]*\s*"     # multi-level: 1.1, 2.3.1 (optionally followed by .- )
-    r"|\d+[.\-–—]+\s*"               # single-level with punctuation: 1.-, 7.-, 1.
+    r"TEXTO\s+\d+[.\-–—]+\s*"  # "TEXTO N.-" (Spanish textbooks)
+    r"|\d+(?:\.\d+)+[.\-–—]*\s*"  # multi-level: 1.1, 2.3.1 (optionally followed by .- )
+    r"|\d+[.\-–—]+\s*"  # single-level with punctuation: 1.-, 7.-, 1.
     r")"
 )
 
@@ -112,15 +111,18 @@ Values for "keep":
 
 When in doubt, keep the section."""
 
-_restructure_prompt = ChatPromptTemplate.from_messages([
-    ("system", _RESTRUCTURE_SYSTEM),
-    ("human", _RESTRUCTURE_USER),
-])
+_restructure_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", _RESTRUCTURE_SYSTEM),
+        ("human", _RESTRUCTURE_USER),
+    ]
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _strip_markdown_fences(text: str) -> str:
     """Remove markdown code fences from LLM output."""
@@ -147,26 +149,26 @@ def _robust_json_loads(text: str) -> dict:
         pass
 
     # Escape unescaped control chars inside string values (common LLM issue)
-    cleaned = re.sub(r'[\x00-\x1f\x7f]', lambda m: ' ' if m.group() in ('\n', '\r', '\t') else '', text)
+    cleaned = re.sub(r"[\x00-\x1f\x7f]", lambda m: " " if m.group() in ("\n", "\r", "\t") else "", text)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
     # Fix trailing commas
-    cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
+    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
     # Try to find a JSON object in the text
-    match = re.search(r'\{[\s\S]*\}', cleaned)
+    match = re.search(r"\{[\s\S]*\}", cleaned)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
-            fixed = re.sub(r',\s*([}\]])', r'\1', match.group())
+            fixed = re.sub(r",\s*([}\]])", r"\1", match.group())
             return json.loads(fixed)
 
     raise json.JSONDecodeError("Could not extract valid JSON", text, 0)
@@ -183,12 +185,14 @@ def _module_to_skeleton(module: Module) -> str:
         sm_data = {"title": sm.title, "sections": []}
         for sec in sm.sections:
             theory_snippet = sec.theory[:300] + "..." if len(sec.theory) > 300 else sec.theory
-            sm_data["sections"].append({
-                "title": sec.title,
-                "theory_snippet": theory_snippet,
-                "theory_length": len(sec.theory),
-                "has_images": bool(sec.source_images),
-            })
+            sm_data["sections"].append(
+                {
+                    "title": sec.title,
+                    "theory_snippet": theory_snippet,
+                    "theory_length": len(sec.theory),
+                    "has_images": bool(sec.source_images),
+                }
+            )
         skeleton["submodules"].append(sm_data)
     return json.dumps(skeleton, ensure_ascii=False, indent=2)
 
@@ -223,18 +227,22 @@ def _apply_restructure(module: Module, llm_result: dict) -> Module:
     for sm in llm_submodules:
         sec_list = []
         for sec in sm.get("sections", []):
-            sec_list.append({
-                "title": sec.get("title", ""),
-                "norm": _normalize_title_for_match(sec.get("title", "")),
-                "keep": sec.get("keep", True),
-                "summary": sec.get("summary", ""),
-            })
-        sm_lookup.append({
-            "title": _strip_numbered_prefix(sm.get("title", "")),
-            "description": sm.get("description", ""),
-            "norm": _normalize_title_for_match(sm.get("title", "")),
-            "sections": sec_list,
-        })
+            sec_list.append(
+                {
+                    "title": sec.get("title", ""),
+                    "norm": _normalize_title_for_match(sec.get("title", "")),
+                    "keep": sec.get("keep", True),
+                    "summary": sec.get("summary", ""),
+                }
+            )
+        sm_lookup.append(
+            {
+                "title": _strip_numbered_prefix(sm.get("title", "")),
+                "description": sm.get("description", ""),
+                "norm": _normalize_title_for_match(sm.get("title", "")),
+                "sections": sec_list,
+            }
+        )
 
     def _find_llm_section(orig_title: str, llm_sections: list[dict]) -> dict | None:
         norm = _normalize_title_for_match(orig_title)
@@ -331,10 +339,12 @@ Rules:
 - Write in {language}.
 - Return ONLY the JSON array."""
 
-_desc_prompt = ChatPromptTemplate.from_messages([
-    ("system", _DESC_SYSTEM),
-    ("human", _DESC_USER),
-])
+_desc_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", _DESC_SYSTEM),
+        ("human", _DESC_USER),
+    ]
+)
 
 
 def _backfill_descriptions(module: Module, llm, language: str) -> None:
@@ -347,22 +357,26 @@ def _backfill_descriptions(module: Module, llm, language: str) -> None:
             snippet = ""
             for sec in sm.sections:
                 snippet += sec.theory[:150] + " "
-            items.append({
-                "index": len(items),
-                "type": "submodule",
-                "title": sm.title,
-                "theory_snippet": snippet.strip()[:300],
-            })
+            items.append(
+                {
+                    "index": len(items),
+                    "type": "submodule",
+                    "title": sm.title,
+                    "theory_snippet": snippet.strip()[:300],
+                }
+            )
             targets.append(("submodule", sm_idx, None))
 
         for sec_idx, sec in enumerate(sm.sections):
             if not sec.description or sec.description == sec.title:
-                items.append({
-                    "index": len(items),
-                    "type": "section",
-                    "title": sec.title,
-                    "theory_snippet": sec.theory[:300],
-                })
+                items.append(
+                    {
+                        "index": len(items),
+                        "type": "section",
+                        "title": sec.title,
+                        "theory_snippet": sec.theory[:300],
+                    }
+                )
                 targets.append(("section", sm_idx, sec_idx))
 
     if not items:
@@ -370,11 +384,15 @@ def _backfill_descriptions(module: Module, llm, language: str) -> None:
 
     chain = _desc_prompt | llm | StrOutputParser()
     try:
-        raw = chain.invoke({
-            "language": language or "Español",
-            "items_json": json.dumps(items, ensure_ascii=False, indent=2),
-        })
-        descriptions = _robust_json_loads(raw) if raw.strip().startswith("{") else json.loads(_strip_markdown_fences(raw.strip()))
+        raw = chain.invoke(
+            {
+                "language": language or "Español",
+                "items_json": json.dumps(items, ensure_ascii=False, indent=2),
+            }
+        )
+        descriptions = (
+            _robust_json_loads(raw) if raw.strip().startswith("{") else json.loads(_strip_markdown_fences(raw.strip()))
+        )
     except Exception as e:
         logger.warning("Description backfill LLM call failed: %s", e)
         return
@@ -397,6 +415,7 @@ def _backfill_descriptions(module: Module, llm, language: str) -> None:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def restructure_module(
     module: Module,
@@ -445,11 +464,13 @@ def restructure_module(
             t0 = time.time()
             print(f"      [{prov}] attempt {attempt + 1}/{max_retries} ...")
             try:
-                raw = chain.invoke({
-                    "course_title": course_title,
-                    "module_index": module.index,
-                    "module_skeleton": skeleton,
-                })
+                raw = chain.invoke(
+                    {
+                        "course_title": course_title,
+                        "module_index": module.index,
+                        "module_skeleton": skeleton,
+                    }
+                )
                 elapsed = time.time() - t0
                 print(f"      [{prov}] attempt {attempt + 1} succeeded ({elapsed:.1f}s)")
                 result = _robust_json_loads(raw)
@@ -461,13 +482,21 @@ def restructure_module(
                 elapsed = time.time() - t0
                 logger.warning(
                     "Restructure attempt %d/%d with %s failed (JSON, %.1fs): %s",
-                    attempt + 1, max_retries, prov, elapsed, e,
+                    attempt + 1,
+                    max_retries,
+                    prov,
+                    elapsed,
+                    e,
                 )
             except Exception as e:
                 elapsed = time.time() - t0
                 logger.warning(
                     "Restructure attempt %d/%d with %s failed (%.1fs): %s",
-                    attempt + 1, max_retries, prov, elapsed, e,
+                    attempt + 1,
+                    max_retries,
+                    prov,
+                    elapsed,
+                    e,
                 )
 
         if provider_succeeded:
@@ -477,7 +506,8 @@ def restructure_module(
     if result is None:
         logger.error(
             "All restructure attempts failed for module %d across providers %s, keeping original",
-            module.index, providers_to_try,
+            module.index,
+            providers_to_try,
         )
         return module, None
 
@@ -541,12 +571,12 @@ def restructure_course(
             detected_languages.append(lang)
         secs = sum(len(sm.sections) for sm in module.submodules)
         print(
-            f"      -> {module.title[:60]}  ({len(module.submodules)} submodules, "
-            f"{secs} sections) [{mod_elapsed:.1f}s]"
+            f"      -> {module.title[:60]}  ({len(module.submodules)} submodules, {secs} sections) [{mod_elapsed:.1f}s]"
         )
 
     if detected_languages:
         from collections import Counter
+
         dominant = Counter(detected_languages).most_common(1)[0][0]
         print(f"   Detected language: {dominant}")
         state.config.language = dominant
@@ -575,10 +605,91 @@ def detect_content_language(state: CourseState) -> str | None:
 
     words = set(theory_sample.lower().split())
 
-    _ES_STOPWORDS = {"de", "la", "el", "en", "los", "las", "del", "que", "por", "con", "una", "para", "como", "más", "este", "esta", "pero", "también", "puede", "cuando"}
-    _EN_STOPWORDS = {"the", "and", "for", "that", "with", "this", "from", "are", "was", "were", "been", "have", "has", "which", "their", "they", "will", "would", "could"}
-    _FR_STOPWORDS = {"les", "des", "une", "dans", "pour", "avec", "sur", "par", "qui", "sont", "cette", "mais", "aussi", "peut", "entre", "comme", "fait", "nous", "vous"}
-    _PT_STOPWORDS = {"dos", "das", "uma", "nos", "nas", "para", "com", "por", "que", "como", "mais", "esta", "pode", "quando", "sobre", "foi", "são", "tem", "seu"}
+    _ES_STOPWORDS = {
+        "de",
+        "la",
+        "el",
+        "en",
+        "los",
+        "las",
+        "del",
+        "que",
+        "por",
+        "con",
+        "una",
+        "para",
+        "como",
+        "más",
+        "este",
+        "esta",
+        "pero",
+        "también",
+        "puede",
+        "cuando",
+    }
+    _EN_STOPWORDS = {
+        "the",
+        "and",
+        "for",
+        "that",
+        "with",
+        "this",
+        "from",
+        "are",
+        "was",
+        "were",
+        "been",
+        "have",
+        "has",
+        "which",
+        "their",
+        "they",
+        "will",
+        "would",
+        "could",
+    }
+    _FR_STOPWORDS = {
+        "les",
+        "des",
+        "une",
+        "dans",
+        "pour",
+        "avec",
+        "sur",
+        "par",
+        "qui",
+        "sont",
+        "cette",
+        "mais",
+        "aussi",
+        "peut",
+        "entre",
+        "comme",
+        "fait",
+        "nous",
+        "vous",
+    }
+    _PT_STOPWORDS = {
+        "dos",
+        "das",
+        "uma",
+        "nos",
+        "nas",
+        "para",
+        "com",
+        "por",
+        "que",
+        "como",
+        "mais",
+        "esta",
+        "pode",
+        "quando",
+        "sobre",
+        "foi",
+        "são",
+        "tem",
+        "seu",
+    }
 
     scores = {
         "Español": len(words & _ES_STOPWORDS),
