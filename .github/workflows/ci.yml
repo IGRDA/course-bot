@@ -89,7 +89,7 @@ jobs:
           LANGSMITH_PROJECT: ${{ vars.LANGSMITH_PROJECT }}
           TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
         run: |
-          python3 -m workflows.workflow --total-pages 1
+          python3 -u -m workflows.workflow --total-pages 1
 
   bot-test:
     name: Bot — unit tests
