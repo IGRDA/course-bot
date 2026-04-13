@@ -21,7 +21,12 @@ dependencies = [
 test = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
 ]
 
 [tool.setuptools.packages.find]
 include = ["bot*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

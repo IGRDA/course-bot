@@ -121,5 +121,96 @@ evaluation = [
     "sentence-transformers==5.1.2",
 ]
 
+# Test dependencies
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov>=6.0.0",
+]
+
 [tool.setuptools.packages.find]
 include = ["agents*", "workflows*", "tools*", "evaluators*", "evaluation*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = [
+    # Entry points - not unit-testable
+    "*/__main__.py",
+    # TTS engine clients - require GPU/audio hardware or large model downloads
+    "tools/podcast/coqui/client.py",
+    "tools/podcast/chatterbox/client.py",
+    "tools/podcast/mlx_tts/client.py",
+    "tools/podcast/openai_tts/client.py",
+    "tools/podcast/elevenlabs/client.py",
+    "tools/podcast/edge/client.py",
+    "tools/podcast/qwen_tts/client.py",
+    "tools/podcast/qwen_tts_api/client.py",
+    "tools/podcast/tts_engine.py",
+    "tools/podcast/audio_utils.py",
+    # Browser automation - require playwright / running browser
+    "tools/web_scraper/scraper.py",
+    "tools/web_image_extractor/extractor.py",
+    "tools/imagesearch/google/client.py",
+    "tools/imagesearch/freepik/client.py",
+    # Video generation - require browser automation
+    "tools/video_generator/generator.py",
+    # PDF processing - require docling/PyMuPDF (heavy ML models, not installed in test env)
+    "tools/pdf2md/docling/converter.py",
+    # PDF book generation - requires LaTeX (pdflatex) installed
+    "tools/json2book/generator.py",
+    # Workflow entry points - require all API keys and full LLM stack
+    "workflows/workflow.py",
+    "workflows/workflow_book.py",
+    "workflows/workflow_podcast.py",
+    "workflows/workflow_pdf.py",
+    "workflows/workflow_pdf2podcast.py",
+    "workflows/workflow_digitalize.py",
+    # LangGraph execution nodes - require live LLM calls
+    "workflows/nodes/content.py",
+    "workflows/nodes/digitalize.py",
+    "workflows/nodes/extras.py",
+    "workflows/nodes/formatting.py",
+    "workflows/nodes/index.py",
+    "workflows/nodes/metadata.py",
+    "workflows/nodes/utils.py",
+    "workflows/nodes/__init__.py",
+    # Agent implementations - require LLM calls
+    "agents/activities_generator/agent.py",
+    "agents/bibliography_generator/agent.py",
+    "agents/html_formatter/agent.py",
+    "agents/image_generator/agent.py",
+    "agents/image_generator/batch_image_generator.py",
+    "agents/image_search/agent.py",
+    "agents/index_generator/agent.py",
+    "agents/md_digitalizer/parser.py",
+    "agents/md_digitalizer/restructurer.py",
+    "agents/md_digitalizer/structure_validator.py",
+    "agents/mind_map_generator/agent.py",
+    "agents/pdf_index_generator/agent.py",
+    "agents/people_search/agent.py",
+    "agents/podcast_generator/agent.py",
+    "agents/section_theory_generator/agent.py",
+    "agents/video_html_generator/agent.py",
+    "agents/video_search/agent.py",
+    # Agent prompts - prompt strings only, no testable logic
+    "agents/*/prompts.py",
+    # HTML exporter - requires full CourseState data to render
+    "agents/html_formatter/exporter.py",
+    # Base parallel processor - requires running LangGraph
+    "agents/base/parallel_processor.py",
+    # People search orchestration - requires LLM calls (suggest_people + translate)
+    "tools/peoplesearch/factory.py",
+    "tools/peoplesearch/search.py",
+    "tools/peoplesearch/suggester.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "if __name__ == .__main__.:",
+]

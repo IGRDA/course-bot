@@ -1,5 +1,6 @@
 """Unit tests for tools/podcast/factory.py"""
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -93,3 +94,58 @@ class TestCreateTtsEngine:
 
                 result = f.create_tts_engine(engine_name)
             assert result is mock_engine
+
+    def _make_engine_module_mock(self, class_name: str) -> MagicMock:
+        """Create a mock module with a mock class."""
+        mock_cls = MagicMock()
+        mock_module = MagicMock()
+        setattr(mock_module, class_name, mock_cls)
+        return mock_module, mock_cls
+
+    def test_edge_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("EdgeTTSEngine")
+        with patch.dict(sys.modules, {"tools.podcast.edge.client": mock_module}):
+            create_tts_engine("edge", language="en")
+        mock_cls.assert_called_once()
+
+    def test_coqui_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("CoquiTTSEngine")
+        with patch.dict(sys.modules, {"tools.podcast.coqui.client": mock_module}):
+            create_tts_engine("coqui", language="en")
+        mock_cls.assert_called_once()
+
+    def test_chatterbox_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("ChatterboxEngine")
+        with patch.dict(sys.modules, {"tools.podcast.chatterbox.client": mock_module}):
+            create_tts_engine("chatterbox", language="en")
+        mock_cls.assert_called_once()
+
+    def test_elevenlabs_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("ElevenLabsTTSEngine")
+        with patch.dict(sys.modules, {"tools.podcast.elevenlabs.client": mock_module}):
+            create_tts_engine("elevenlabs", language="en")
+        mock_cls.assert_called_once()
+
+    def test_openai_tts_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("OpenAITTSEngine")
+        with patch.dict(sys.modules, {"tools.podcast.openai_tts.client": mock_module}):
+            create_tts_engine("openai_tts", language="en")
+        mock_cls.assert_called_once()
+
+    def test_qwen_tts_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("QwenTTSEngine")
+        with patch.dict(sys.modules, {"tools.podcast.qwen_tts.client": mock_module}):
+            create_tts_engine("qwen_tts", language="en")
+        mock_cls.assert_called_once()
+
+    def test_mlx_tts_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("MLXTTSEngine")
+        with patch.dict(sys.modules, {"tools.podcast.mlx_tts.client": mock_module}):
+            create_tts_engine("mlx_tts", language="en")
+        mock_cls.assert_called_once()
+
+    def test_qwen_tts_api_engine_instantiated(self):
+        mock_module, mock_cls = self._make_engine_module_mock("QwenTTSApiEngine")
+        with patch.dict(sys.modules, {"tools.podcast.qwen_tts_api.client": mock_module}):
+            create_tts_engine("qwen_tts_api", language="en")
+        mock_cls.assert_called_once()

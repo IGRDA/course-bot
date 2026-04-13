@@ -4,6 +4,8 @@ Abstract base class for TTS engines.
 Defines the common interface that all TTS engines must implement.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 
 from .models import Conversation, Message

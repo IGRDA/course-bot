@@ -1,0 +1,29 @@
+repos:
+  # Ruff: lint + format (uses existing pyproject.toml config)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.10
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  # Engine unit tests (fast, ~0.4s, no API keys needed)
+  - repo: local
+    hooks:
+      - id: engine-unit-tests
+        name: Engine unit tests
+        language: system
+        entry: bash -c 'cd engine && python3.13 -m pytest tests/ -q --tb=short'
+        pass_filenames: false
+        always_run: false
+        files: ^engine/
+
+      - id: bot-unit-tests
+        name: Bot unit tests
+        language: system
+        # Skips gracefully if bot deps are absent (engine-only dev env).
+        # Run `pip install -e ./bot[test]` to enable locally.
+        entry: "bash -c 'python3.13 -c \"import fastapi\" 2>/dev/null || exit 0; cd bot && python3.13 -m pytest tests/ -q --tb=short'"
+        pass_filenames: false
+        always_run: false
+        files: ^bot/
