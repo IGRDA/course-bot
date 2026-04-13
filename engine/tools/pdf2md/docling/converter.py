@@ -6,11 +6,10 @@ to function bodies so that importing this module does not pull in ~2 GB
 of transitive dependencies at module-load time.
 """
 
+import logging
 import os
 import platform
-import tempfile
 from pathlib import Path
-import logging
 
 # Configure logging to see conversion details
 logging.basicConfig(level=logging.INFO)
@@ -61,10 +60,10 @@ def convert_pdf_to_markdown(
 ):
     """
     Convert PDF to Markdown with configurable OCR and extraction options.
-    
+
     Optimized for Spanish documents by default. Uses force_full_page_ocr to bypass
     potentially corrupted PDF text layers and extract text via OCR instead.
-    
+
     Args:
         pdf_path: Path to the PDF file
         return_string: If True, return markdown as string; if False, save to file and return path
@@ -87,29 +86,29 @@ def convert_pdf_to_markdown(
                             - 'structure': Keep markdown table formatting (may have encoding issues in cells)
                             - 'ocr': Disable table detection, full OCR (correct text, no table formatting)
                             - 'hybrid': (default) Tables enabled with force_ocr for best balance
-    
+
     Returns:
         str: Markdown content if return_string=True, otherwise path to saved markdown file
-    
+
     Examples:
         # Default: Spanish document with OCR
         >>> md = convert_pdf_to_markdown("document.pdf", return_string=True)
-        
+
         # English document
         >>> md = convert_pdf_to_markdown("document.pdf", language="en")
-        
+
         # Prioritize correct text over table formatting
         >>> md = convert_pdf_to_markdown("document.pdf", table_text_handling="ocr")
-        
+
         # Trust PDF's embedded text (no OCR)
         >>> md = convert_pdf_to_markdown("document.pdf", force_ocr=False)
-        
+
         # Write to a custom directory
         >>> path = convert_pdf_to_markdown("document.pdf", output_dir="course/md_course")
     """
     # Setup paths
     pdf_path = Path(pdf_path).resolve()
-    
+
     if not pdf_path.exists():
         raise FileNotFoundError(f"PDF file not found: {pdf_path}")
 
@@ -122,7 +121,7 @@ def convert_pdf_to_markdown(
     else:
         output_base = Path.cwd() / "output" / "docling" / doc_name
     output_base.mkdir(parents=True, exist_ok=True)
-    
+
     logger.info(f"Processing: {pdf_path}")
     logger.info(f"Output directory: {output_base}")
     logger.info(f"OCR Engine: {ocr_engine}, Language: {language}, Force OCR: {force_ocr}")
@@ -130,9 +129,10 @@ def convert_pdf_to_markdown(
 
     # --- Lazy imports of heavy docling dependencies ---
     try:
-        from docling.document_converter import DocumentConverter, PdfFormatOption
-        from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
         from docling.datamodel.base_models import InputFormat
+        from docling.datamodel.pipeline_options import PdfPipelineOptions, TableFormerMode
+        from docling.document_converter import DocumentConverter, PdfFormatOption
+
         _docling_available = True
     except ImportError:
         _docling_available = False
@@ -146,12 +146,12 @@ def convert_pdf_to_markdown(
 
     # Step 1: Configure pipeline with optimized settings
     pipeline_options = PdfPipelineOptions()
-    
+
     # Image quality settings
     pipeline_options.images_scale = images_scale
     pipeline_options.generate_picture_images = extract_images
     pipeline_options.generate_table_images = False
-    
+
     # Table extraction settings based on table_text_handling strategy
     if table_text_handling == "ocr":
         pipeline_options.do_table_structure = False
@@ -164,21 +164,18 @@ def convert_pdf_to_markdown(
         pipeline_options.table_structure_options.do_cell_matching = True
     else:
         pipeline_options.do_table_structure = False
-    
+
     # OCR engine configuration
     pipeline_options.do_ocr = True
     ocr_options = _get_ocr_options(ocr_engine, language, force_ocr)
     if ocr_options is not None:
         pipeline_options.ocr_options = ocr_options
-    
+
     # Step 2: Convert document (with automatic repair on failure)
-    converter = DocumentConverter(
-        format_options={
-            InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-        }
-    )
-    
+    converter = DocumentConverter(format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)})
+
     import time
+
     repaired_path = None
     try:
         start_time = time.time()
@@ -195,13 +192,9 @@ def convert_pdf_to_markdown(
             elapsed = time.time() - start_time
             logger.info(f"Conversion succeeded after repair in {elapsed:.2f} seconds")
         except Exception as second_error:
-            logger.warning(
-                f"Docling conversion failed even after repair: {second_error}"
-            )
+            logger.warning(f"Docling conversion failed even after repair: {second_error}")
             logger.info("Falling back to PyMuPDF-based conversion")
-            md_path = _pymupdf_fallback(
-                pdf_path, output_base, doc_name, extract_images
-            )
+            md_path = _pymupdf_fallback(pdf_path, output_base, doc_name, extract_images)
             if return_string:
                 return Path(md_path).read_text(encoding="utf-8")
             return md_path
@@ -211,6 +204,7 @@ def convert_pdf_to_markdown(
 
     if extract_images:
         from docling_core.types.doc import ImageRefMode
+
         result.document.save_as_markdown(
             markdown_path,
             image_mode=ImageRefMode.REFERENCED,
@@ -259,11 +253,10 @@ def _pymupdf_fallback(
     """
     try:
         import fitz  # PyMuPDF
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
-            "PyMuPDF (fitz) is required for the fallback converter. "
-            "Install it with: pip install pymupdf"
-        )
+            "PyMuPDF (fitz) is required for the fallback converter. Install it with: pip install pymupdf"
+        ) from err
 
     logger.warning("Using PyMuPDF fallback converter (Docling unavailable)")
 
@@ -280,7 +273,7 @@ def _pymupdf_fallback(
 
         # --- Extract images ---
         if extract_images:
-            for img_idx, img_info in enumerate(page.get_images(full=True)):
+            for _img_idx, img_info in enumerate(page.get_images(full=True)):
                 xref = img_info[0]
                 try:
                     pix = fitz.Pixmap(src, xref)
@@ -316,7 +309,7 @@ def _pymupdf_fallback(
                     continue
 
                 max_size = max(s["size"] for s in spans)
-                is_bold = any(s["flags"] & 2 ** 4 for s in spans)
+                is_bold = any(s["flags"] & 2**4 for s in spans)
 
                 if max_size >= 16 and len(line_text.split()) < 20:
                     md_lines.append(f"# {line_text}")
@@ -340,9 +333,7 @@ def _pymupdf_fallback(
     markdown_path.write_text("\n".join(md_lines), encoding="utf-8")
 
     img_msg = f", {img_counter} images" if extract_images else ""
-    logger.info(
-        f"PyMuPDF fallback produced {len(md_lines)} lines{img_msg}: {markdown_path}"
-    )
+    logger.info(f"PyMuPDF fallback produced {len(md_lines)} lines{img_msg}: {markdown_path}")
     return str(markdown_path)
 
 
@@ -417,11 +408,10 @@ def _repair_pdf(pdf_path: Path, output_dir: Path) -> Path:
     """
     try:
         import fitz  # PyMuPDF
-    except ImportError:
+    except ImportError as err:
         raise ImportError(
-            "PyMuPDF (fitz) is required for PDF repair but is not installed. "
-            "Install it with: pip install pymupdf"
-        )
+            "PyMuPDF (fitz) is required for PDF repair but is not installed. Install it with: pip install pymupdf"
+        ) from err
 
     repaired_path = output_dir / f"{pdf_path.stem}_repaired.pdf"
     logger.info(f"Repairing PDF: {pdf_path} → {repaired_path}")
@@ -438,10 +428,7 @@ def _repair_pdf(pdf_path: Path, output_dir: Path) -> Path:
         dst.close()
         src.close()
 
-        logger.info(
-            f"PDF repaired successfully "
-            f"({repaired_path.stat().st_size / 1024:.0f} KB)"
-        )
+        logger.info(f"PDF repaired successfully ({repaired_path.stat().st_size / 1024:.0f} KB)")
         return repaired_path
 
     except Exception as e:
@@ -451,12 +438,12 @@ def _repair_pdf(pdf_path: Path, output_dir: Path) -> Path:
 def _get_ocr_options(ocr_engine: str, language: str = "es", force_ocr: bool = True):
     """
     Configure OCR options based on selected engine, language, and force_ocr setting.
-    
+
     Args:
         ocr_engine: OCR engine name ('ocrmac', 'easyocr', 'tesseract', 'auto')
         language: Language code ('es', 'en', 'fr', 'de', 'pt', 'it')
         force_ocr: If True, enables force_full_page_ocr to bypass PDF text layer
-    
+
     Returns:
         OCR options object configured for the specified engine, or None for auto
     """
@@ -465,45 +452,39 @@ def _get_ocr_options(ocr_engine: str, language: str = "es", force_ocr: bool = Tr
         recommended = get_recommended_ocr_engine()
         logger.info(f"Auto-detected OCR engine: {recommended}")
         return _get_ocr_options(recommended, language, force_ocr)
-    
+
     elif ocr_engine == "ocrmac":
         # macOS native OCR - fastest and most efficient on Mac
         # Best choice for macOS systems, NOT available on Linux/Windows
         if platform.system() != "Darwin":
             logger.warning("ocrmac requested but not on macOS - falling back to easyocr")
             return _get_ocr_options("easyocr", language, force_ocr)
-        
+
         from docling.datamodel.pipeline_options import OcrMacOptions
+
         lang_codes = LANGUAGE_MAP["ocrmac"].get(language, [f"{language}-{language.upper()}"])
-        ocr_options = OcrMacOptions(
-            force_full_page_ocr=force_ocr,
-            lang=lang_codes
-        )
+        ocr_options = OcrMacOptions(force_full_page_ocr=force_ocr, lang=lang_codes)
         logger.debug(f"OcrMac configured with lang={lang_codes}, force_full_page_ocr={force_ocr}")
         return ocr_options
-    
+
     elif ocr_engine == "tesseract":
         # Google's Tesseract OCR - good accuracy, widely supported
         from docling.datamodel.pipeline_options import TesseractOcrOptions
+
         lang_codes = LANGUAGE_MAP["tesseract"].get(language, [language])
-        ocr_options = TesseractOcrOptions(
-            force_full_page_ocr=force_ocr,
-            lang=lang_codes
-        )
+        ocr_options = TesseractOcrOptions(force_full_page_ocr=force_ocr, lang=lang_codes)
         logger.debug(f"Tesseract configured with lang={lang_codes}, force_full_page_ocr={force_ocr}")
         return ocr_options
-    
+
     elif ocr_engine == "easyocr":
         # Deep learning based - high accuracy but slower
         from docling.datamodel.pipeline_options import EasyOcrOptions
+
         lang_codes = LANGUAGE_MAP["easyocr"].get(language, [language])
-        ocr_options = EasyOcrOptions(
-            force_full_page_ocr=force_ocr,
-            lang=lang_codes
-        )
+        ocr_options = EasyOcrOptions(force_full_page_ocr=force_ocr, lang=lang_codes)
         logger.debug(f"EasyOCR configured with lang={lang_codes}, force_full_page_ocr={force_ocr}")
         return ocr_options
-    
+
     else:
         # For unknown engines, use default
         logger.warning(f"Unknown OCR engine '{ocr_engine}', using default options")
@@ -513,7 +494,7 @@ def _get_ocr_options(ocr_engine: str, language: str = "es", force_ocr: bool = Tr
 def get_recommended_ocr_engine() -> str:
     """
     Get the recommended OCR engine for the current platform.
-    
+
     Returns:
         str: 'ocrmac' on macOS, 'easyocr' on other platforms
     """
@@ -654,8 +635,7 @@ def split_markdown_by_chapters(
 
     if not boundaries:
         logger.warning(
-            "No chapter boundaries found with default pattern. "
-            "Trying fallback: any H1 header as chapter boundary."
+            "No chapter boundaries found with default pattern. Trying fallback: any H1 header as chapter boundary."
         )
         for idx, line in enumerate(lines):
             if re.match(r"^#\s+\S", line) and not re.match(r"^##", line):
@@ -711,7 +691,7 @@ def split_markdown_by_chapters(
     first_chapter_idx = boundaries[0][0]
     if first_chapter_idx > 0:
         frontmatter = lines[:first_chapter_idx]
-        if any(l.strip() for l in frontmatter):
+        if any(line.strip() for line in frontmatter):
             created.append(_write_chunk("00_frontmatter.md", frontmatter))
 
     # Chapters
@@ -729,7 +709,9 @@ def split_markdown_by_chapters(
             raw_title = re.sub(
                 r"^(?:M[óo]dulo|Module|Chapter|Cap[íi]tulo"
                 r"|T\s*EMA|Tema|Unidad|Unit|Topic|Lecci[óo]n|Lesson)\s+\d+\s*[:\-–—.]?\s*",
-                "", raw_title, flags=re.IGNORECASE,
+                "",
+                raw_title,
+                flags=re.IGNORECASE,
             )
             raw_title = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", raw_title)
             slug = _slugify(raw_title) if raw_title.strip() else ""

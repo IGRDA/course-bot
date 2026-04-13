@@ -1,12 +1,11 @@
 """Unit tests for workflows/output_manager.py"""
 
-import json
 import os
 import sys
 import types
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Stub out the langchain-dependent exporter before importing output_manager.
@@ -50,6 +49,7 @@ class TestOutputManagerInit:
         folder_name = os.path.basename(manager.run_folder)
         # Timestamp format: YYYYMMDD_HHMMSS (14 digits + underscore)
         import re
+
         assert re.search(r"\d{8}_\d{6}", folder_name)
 
     def test_special_chars_in_title_sanitized(self, tmp_path):
@@ -189,15 +189,15 @@ class TestSaveFinal:
         manager = self._make_manager(tmp_path)
         state = MagicMock()
         state.model_dump_json.return_value = '{"title": "test course"}'
-        with patch("workflows.output_manager.export_to_html") as mock_export:
-            json_path, html_path = manager.save_final(state)
+        with patch("workflows.output_manager.export_to_html"):
+            json_path, _html_path = manager.save_final(state)
         assert os.path.exists(json_path)
         assert json_path.endswith("course.json")
 
     def test_calls_export_to_html(self, tmp_path):
         manager = self._make_manager(tmp_path)
         state = MagicMock()
-        state.model_dump_json.return_value = '{}'
+        state.model_dump_json.return_value = "{}"
         with patch("workflows.output_manager.export_to_html") as mock_export:
             manager.save_final(state)
         mock_export.assert_called_once()
@@ -205,7 +205,7 @@ class TestSaveFinal:
     def test_returns_tuple_of_paths(self, tmp_path):
         manager = self._make_manager(tmp_path)
         state = MagicMock()
-        state.model_dump_json.return_value = '{}'
+        state.model_dump_json.return_value = "{}"
         with patch("workflows.output_manager.export_to_html"):
             result = manager.save_final(state)
         assert len(result) == 2
@@ -216,12 +216,13 @@ class TestSaveFinal:
 
 class TestLoadStep:
     def test_loads_course_state(self, tmp_path):
-        from workflows.output_manager import load_step
         from workflows.config import CourseConfig
+        from workflows.output_manager import load_step
 
         # Create a minimal valid CourseState JSON
         config = CourseConfig(title="Test")
         from workflows.state import CourseState
+
         state = CourseState(config=config, title="Load Test")
         json_data = state.model_dump_json(indent=2)
 

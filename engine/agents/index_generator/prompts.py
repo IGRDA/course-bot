@@ -199,15 +199,21 @@ IMPORTANT REMINDERS:
 gen_prompt = PromptTemplate(
     template=GEN_TEMPLATE,
     input_variables=[
-        "course_title", "course_description", "language",
-        "n_modules", "n_submodules", "n_sections", "n_words",
-        "format_instructions", "audience_guidelines"
+        "course_title",
+        "course_description",
+        "language",
+        "n_modules",
+        "n_submodules",
+        "n_sections",
+        "n_words",
+        "format_instructions",
+        "audience_guidelines",
     ],
     partial_variables={
         "curriculum_role": CURRICULUM_ARCHITECT_ROLE,
         "scaffolding_principles": SCAFFOLDING_PRINCIPLES,
-        "structure_verification": STRUCTURE_VERIFICATION
-    }
+        "structure_verification": STRUCTURE_VERIFICATION,
+    },
 )
 
 
@@ -280,7 +286,7 @@ No code fences, no commentary.
 
 modules_only_prompt = PromptTemplate(
     template=MODULES_ONLY_TEMPLATE,
-    input_variables=["course_title", "language", "n_modules", "format_instructions", "audience_guidelines"]
+    input_variables=["course_title", "language", "n_modules", "format_instructions", "audience_guidelines"],
 )
 
 # Step 1 with research context
@@ -354,10 +360,16 @@ No code fences, no commentary.
 
 modules_only_with_research_prompt = PromptTemplate(
     template=MODULES_ONLY_WITH_RESEARCH_TEMPLATE,
-    input_variables=["course_title", "language", "key_topics", "learning_objectives", "n_modules", "format_instructions", "audience_guidelines"],
-    partial_variables={
-        "textbook_principles": TEXTBOOK_STRUCTURE_PRINCIPLES
-    }
+    input_variables=[
+        "course_title",
+        "language",
+        "key_topics",
+        "learning_objectives",
+        "n_modules",
+        "format_instructions",
+        "audience_guidelines",
+    ],
+    partial_variables={"textbook_principles": TEXTBOOK_STRUCTURE_PRINCIPLES},
 )
 
 # Step 2: Add submodules to existing modules
@@ -402,7 +414,7 @@ No code fences, no commentary.
 
 add_submodules_prompt = PromptTemplate(
     template=ADD_SUBMODULES_TEMPLATE,
-    input_variables=["course_title", "language", "modules_structure", "n_submodules", "format_instructions"]
+    input_variables=["course_title", "language", "modules_structure", "n_submodules", "format_instructions"],
 )
 
 # Step 3: Add sections to existing submodules
@@ -447,7 +459,7 @@ No code fences, no commentary.
 
 add_sections_prompt = PromptTemplate(
     template=ADD_SECTIONS_TEMPLATE,
-    input_variables=["course_title", "language", "structure_with_submodules", "n_sections", "format_instructions"]
+    input_variables=["course_title", "language", "structure_with_submodules", "n_sections", "format_instructions"],
 )
 
 # Final step: Add descriptions to complete structure
@@ -491,10 +503,7 @@ Return ONLY valid JSON. No code fences, no commentary.
 
 expand_descriptions_prompt = PromptTemplate(
     template=EXPAND_DESCRIPTIONS_TEMPLATE,
-    input_variables=[
-        "course_title", "language", "titles_structure",
-        "format_instructions", "audience_guidelines"
-    ]
+    input_variables=["course_title", "language", "titles_structure", "format_instructions", "audience_guidelines"],
 )
 
 
@@ -545,8 +554,7 @@ Example output format:
 """
 
 query_generation_prompt = PromptTemplate(
-    template=QUERY_GENERATION_TEMPLATE,
-    input_variables=["course_title", "course_description", "max_queries"]
+    template=QUERY_GENERATION_TEMPLATE, input_variables=["course_title", "course_description", "max_queries"]
 )
 
 
@@ -579,7 +587,7 @@ YOUR TASK
 Analyze the raw research and synthesize it into a structured course research document.
 Extract the most relevant educational insights.
 
-IMPORTANT: ALL output must be in ENGLISH. This research document will be used to inform 
+IMPORTANT: ALL output must be in ENGLISH. This research document will be used to inform
 course structure generation, which will later be translated to the target language.
 
 =====================================
@@ -623,7 +631,7 @@ CONSTRAINTS
 
 research_synthesis_prompt = PromptTemplate(
     template=RESEARCH_SYNTHESIS_TEMPLATE,
-    input_variables=["course_title", "course_description", "raw_research", "format_instructions"]
+    input_variables=["course_title", "course_description", "raw_research", "format_instructions"],
 )
 
 
@@ -724,17 +732,26 @@ IMPORTANT REMINDERS:
 gen_with_research_prompt = PromptTemplate(
     template=GEN_WITH_RESEARCH_TEMPLATE,
     input_variables=[
-        "course_title", "course_description", "language",
-        "course_summary", "learning_objectives", "assumed_prerequisites",
-        "out_of_scope", "key_topics",
-        "n_modules", "n_submodules", "n_sections", "n_words",
-        "format_instructions", "audience_guidelines"
+        "course_title",
+        "course_description",
+        "language",
+        "course_summary",
+        "learning_objectives",
+        "assumed_prerequisites",
+        "out_of_scope",
+        "key_topics",
+        "n_modules",
+        "n_submodules",
+        "n_sections",
+        "n_words",
+        "format_instructions",
+        "audience_guidelines",
     ],
     partial_variables={
         "curriculum_role": CURRICULUM_ARCHITECT_ROLE,
         "scaffolding_principles": SCAFFOLDING_PRINCIPLES,
-        "structure_verification": STRUCTURE_VERIFICATION
-    }
+        "structure_verification": STRUCTURE_VERIFICATION,
+    },
 )
 
 
@@ -801,9 +818,13 @@ IMPORTANT:
 summary_generation_prompt = PromptTemplate(
     template=SUMMARY_GENERATION_TEMPLATE,
     input_variables=[
-        "course_title", "module_title", "module_description",
-        "language", "sections_list", "audience_guidelines"
-    ]
+        "course_title",
+        "module_title",
+        "module_description",
+        "language",
+        "sections_list",
+        "audience_guidelines",
+    ],
 )
 
 

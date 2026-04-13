@@ -13,11 +13,10 @@ https://github.com/QwenLM/Qwen3-TTS
 import os
 import tempfile
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 TaskType = Literal["custom_voice", "voice_clone"]
 
@@ -29,9 +28,11 @@ def _auto_device() -> str:
     Apple Silicon MPS as of qwen-tts 0.1.1.
     """
     import torch
+
     if torch.cuda.is_available():
         return "cuda:0"
     return "cpu"
+
 
 # Qwen3-TTS supported languages (code -> full name expected by the library)
 QWEN_LANGUAGE_MAP: dict[str, str] = {
@@ -64,8 +65,15 @@ QWEN_VOICE_MAP: dict[str, dict[str, str]] = {
 }
 
 QWEN_ALL_SPEAKERS = [
-    "Vivian", "Serena", "Uncle_Fu", "Dylan", "Eric",
-    "Ryan", "Aiden", "Ono_Anna", "Sohee",
+    "Vivian",
+    "Serena",
+    "Uncle_Fu",
+    "Dylan",
+    "Eric",
+    "Ryan",
+    "Aiden",
+    "Ono_Anna",
+    "Sohee",
 ]
 
 # HuggingFace model IDs
@@ -88,11 +96,11 @@ class QwenTTSEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str]] = None,
+        speaker_map: dict[str, str] | None = None,
         task_type: TaskType = "custom_voice",
-        device: Optional[str] = None,
-        instruct: Optional[str] = None,
-        model_name: Optional[str] = None,
+        device: str | None = None,
+        instruct: str | None = None,
+        model_name: str | None = None,
     ):
         """Initialize the Qwen3-TTS engine.
 
@@ -112,9 +120,7 @@ class QwenTTSEngine(BaseTTSEngine):
 
         if language not in QWEN_LANGUAGE_MAP:
             available = ", ".join(sorted(QWEN_LANGUAGE_MAP.keys()))
-            raise ValueError(
-                f"Unsupported language '{language}'. Available: {available}"
-            )
+            raise ValueError(f"Unsupported language '{language}'. Available: {available}")
 
         self.task_type = task_type
         self.device = device or _auto_device()
@@ -129,9 +135,7 @@ class QwenTTSEngine(BaseTTSEngine):
             self.model_name = QWEN_MODEL_CUSTOM_VOICE
 
         if not self.speaker_map and task_type == "custom_voice":
-            self.speaker_map = QWEN_VOICE_MAP.get(
-                language, QWEN_VOICE_MAP["en"]
-            ).copy()
+            self.speaker_map = QWEN_VOICE_MAP.get(language, QWEN_VOICE_MAP["en"]).copy()
 
         self._model = None
         self._clone_prompts: dict[str, object] = {}
@@ -172,12 +176,10 @@ class QwenTTSEngine(BaseTTSEngine):
             Reusable voice_clone_prompt object.
         """
         if ref_audio_path not in self._clone_prompts:
-            self._clone_prompts[ref_audio_path] = (
-                self.model.create_voice_clone_prompt(
-                    ref_audio=ref_audio_path,
-                    ref_text="",
-                    x_vector_only_mode=True,
-                )
+            self._clone_prompts[ref_audio_path] = self.model.create_voice_clone_prompt(
+                ref_audio=ref_audio_path,
+                ref_text="",
+                x_vector_only_mode=True,
             )
         return self._clone_prompts[ref_audio_path]
 
@@ -205,7 +207,7 @@ class QwenTTSEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to a WAV file.
 
@@ -219,19 +221,14 @@ class QwenTTSEngine(BaseTTSEngine):
         """
         import soundfile as sf
 
-        lang_full = QWEN_LANGUAGE_MAP.get(
-            language_code, self.language_full
-        ) if language_code else self.language_full
+        lang_full = QWEN_LANGUAGE_MAP.get(language_code, self.language_full) if language_code else self.language_full
 
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
         if self.task_type == "voice_clone":
             ref_audio_path = self.get_speaker_for_role(message.role)
             if not Path(ref_audio_path).exists():
-                raise FileNotFoundError(
-                    f"Reference audio not found for role '{message.role}': "
-                    f"{ref_audio_path}"
-                )
+                raise FileNotFoundError(f"Reference audio not found for role '{message.role}': {ref_audio_path}")
             clone_prompt = self._get_clone_prompt(ref_audio_path)
             wavs, sr = self.model.generate_voice_clone(
                 text=message.content,
@@ -256,9 +253,9 @@ class QwenTTSEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -326,20 +323,20 @@ def generate_podcast_qwen_tts(
     conversation: list[dict],
     output_path: str,
     language: str = "en",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     task_type: TaskType = "custom_voice",
-    device: Optional[str] = None,
-    instruct: Optional[str] = None,
-    model_name: Optional[str] = None,
+    device: str | None = None,
+    instruct: str | None = None,
+    model_name: str | None = None,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,

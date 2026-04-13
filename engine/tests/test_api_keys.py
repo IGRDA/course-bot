@@ -1,12 +1,9 @@
 """Unit tests for LLMs/api_keys.py"""
 
-import os
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import patch
 
-import pytest
-
-from LLMs.api_keys import parse_api_keys, get_random_key, mask_key, _load_all_keys_from_secrets
+from LLMs.api_keys import _load_all_keys_from_secrets, get_random_key, mask_key, parse_api_keys
 
 
 class TestParseApiKeys:

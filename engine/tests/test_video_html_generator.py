@@ -1,19 +1,19 @@
 """Unit tests for agents/video_html_generator/agent.py"""
 
 import json
+
 import pytest
-from pathlib import Path
 
 from agents.video_html_generator.agent import (
     simplify_html_element,
-    simplify_section,
-    simplify_submodule,
     simplify_module,
     simplify_module_from_path,
+    simplify_section,
+    simplify_submodule,
 )
 
-
 # ---- Fixtures ----
+
 
 def make_html_element(type_="p", content="Hello"):
     return {"type": type_, "content": content}
@@ -62,6 +62,7 @@ def make_module_dict(**kwargs):
 
 # ---- simplify_html_element ----
 
+
 class TestSimplifyHtmlElement:
     def test_non_list_content_unchanged(self):
         el = {"type": "p", "content": "plain text"}
@@ -90,6 +91,7 @@ class TestSimplifyHtmlElement:
 
 
 # ---- simplify_section ----
+
 
 class TestSimplifySection:
     def test_keeps_title(self):
@@ -132,6 +134,7 @@ class TestSimplifySection:
 
 # ---- simplify_submodule ----
 
+
 class TestSimplifySubmodule:
     def test_keeps_title(self):
         result = simplify_submodule(make_submodule_dict(title="Sub X"))
@@ -156,6 +159,7 @@ class TestSimplifySubmodule:
 
 
 # ---- simplify_module ----
+
 
 class TestSimplifyModule:
     def test_keeps_title(self):
@@ -196,6 +200,7 @@ class TestSimplifyModule:
 
 
 # ---- simplify_module_from_path ----
+
 
 class TestSimplifyModuleFromPath:
     def test_file_not_found_raises(self, tmp_path):

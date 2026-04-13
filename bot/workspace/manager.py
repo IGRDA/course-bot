@@ -101,24 +101,37 @@ class WorkspaceManager:
 
         try:
             rc, stdout, _ = await self._run_git_checked(
-                "-C", workspace_dir, "status", "--porcelain",
+                "-C",
+                workspace_dir,
+                "status",
+                "--porcelain",
             )
             if rc != 0:
                 return
 
             if stdout.strip():
                 await self._run_git_checked(
-                    "-C", workspace_dir, "add", "-A",
+                    "-C",
+                    workspace_dir,
+                    "add",
+                    "-A",
                 )
                 await self._run_git_checked(
-                    "-C", workspace_dir,
-                    "commit", "-m", f"Auto-commit from {branch_name}",
+                    "-C",
+                    workspace_dir,
+                    "commit",
+                    "-m",
+                    f"Auto-commit from {branch_name}",
                 )
                 logger.info("Auto-committed changes in %s", workspace_dir)
 
             rc, _, stderr = await self._run_git_checked(
-                "-C", workspace_dir,
-                "push", "origin", branch_name, "--force-with-lease",
+                "-C",
+                workspace_dir,
+                "push",
+                "origin",
+                branch_name,
+                "--force-with-lease",
             )
             if rc == 0:
                 logger.info("Pushed session branch %s", branch_name)
@@ -163,7 +176,10 @@ class WorkspaceManager:
     async def _session_branch_exists_on_remote(self, branch_name: str) -> bool:
         """Lightweight check via ``git ls-remote``."""
         rc, stdout, _ = await self._run_git_checked(
-            "ls-remote", "--heads", self._repo_url, branch_name,
+            "ls-remote",
+            "--heads",
+            self._repo_url,
+            branch_name,
         )
         return rc == 0 and branch_name in stdout
 
@@ -181,23 +197,38 @@ class WorkspaceManager:
             self._image_source_dir,
             workspace_dir,
             ignore=shutil.ignore_patterns(
-                ".git", "__pycache__", "*.pyc", ".egg-info",
+                ".git",
+                "__pycache__",
+                "*.pyc",
+                ".egg-info",
             ),
         )
 
         await self._run_git("-C", workspace_dir, "init")
         await self._run_git(
-            "-C", workspace_dir, "remote", "add", "origin", self._repo_url,
+            "-C",
+            workspace_dir,
+            "remote",
+            "add",
+            "origin",
+            self._repo_url,
         )
 
         # Best-effort: fetch default branch so we can graft onto it
         rc, _, _ = await self._run_git_checked(
-            "-C", workspace_dir,
-            "fetch", "origin", self._default_branch, "--depth=1",
+            "-C",
+            workspace_dir,
+            "fetch",
+            "origin",
+            self._default_branch,
+            "--depth=1",
         )
         if rc == 0:
             await self._run_git_checked(
-                "-C", workspace_dir, "reset", "--soft",
+                "-C",
+                workspace_dir,
+                "reset",
+                "--soft",
                 f"origin/{self._default_branch}",
             )
             logger.info(
@@ -207,37 +238,59 @@ class WorkspaceManager:
 
         await self._run_git("-C", workspace_dir, "add", "-A")
         await self._run_git(
-            "-C", workspace_dir,
-            "commit", "--allow-empty", "-m", "Seed from deployed image",
+            "-C",
+            workspace_dir,
+            "commit",
+            "--allow-empty",
+            "-m",
+            "Seed from deployed image",
         )
         await self._run_git(
-            "-C", workspace_dir, "checkout", "-b", branch_name,
+            "-C",
+            workspace_dir,
+            "checkout",
+            "-b",
+            branch_name,
         )
 
     # -- Strategy: clone for session resume ---------------------------------
 
     async def _clone_for_session_resume(
-        self, workspace_dir: str, branch_name: str,
+        self,
+        workspace_dir: str,
+        branch_name: str,
     ) -> None:
         """Clone the repo and check out the existing session branch."""
         await self._run_git(
-            "clone", "--depth", "20", self._repo_url, workspace_dir,
+            "clone",
+            "--depth",
+            "20",
+            self._repo_url,
+            workspace_dir,
         )
 
         await self._run_git(
-            "-C", workspace_dir,
-            "fetch", "origin",
+            "-C",
+            workspace_dir,
+            "fetch",
+            "origin",
             f"{self._default_branch}:refs/remotes/origin/{self._default_branch}",
         )
 
         await self._run_git(
-            "-C", workspace_dir,
-            "fetch", "origin",
+            "-C",
+            workspace_dir,
+            "fetch",
+            "origin",
             f"{branch_name}:refs/remotes/origin/{branch_name}",
         )
         await self._run_git(
-            "-C", workspace_dir,
-            "checkout", "-b", branch_name, f"origin/{branch_name}",
+            "-C",
+            workspace_dir,
+            "checkout",
+            "-b",
+            branch_name,
+            f"origin/{branch_name}",
         )
         logger.info("Resumed existing session branch: %s", branch_name)
 
@@ -248,7 +301,10 @@ class WorkspaceManager:
         logger.info("Syncing workspace: dir=%s branch=%s", workspace_dir, branch_name)
 
         returncode, stdout, _ = await self._run_git_checked(
-            "-C", workspace_dir, "status", "--porcelain",
+            "-C",
+            workspace_dir,
+            "status",
+            "--porcelain",
         )
         if returncode != 0:
             logger.warning("git status failed in %s — skipping sync", workspace_dir)
@@ -259,48 +315,59 @@ class WorkspaceManager:
             return
 
         await self._run_git_checked(
-            "-C", workspace_dir, "checkout", branch_name,
+            "-C",
+            workspace_dir,
+            "checkout",
+            branch_name,
         )
 
         returncode, _, stderr = await self._run_git_checked(
-            "-C", workspace_dir, "fetch", "origin",
+            "-C",
+            workspace_dir,
+            "fetch",
+            "origin",
         )
         if returncode != 0:
             logger.warning("git fetch failed in %s: %s", workspace_dir, stderr)
             return
 
         returncode, _, stderr = await self._run_git_checked(
-            "-C", workspace_dir,
-            "rebase", "--autostash", f"origin/{self._default_branch}",
+            "-C",
+            workspace_dir,
+            "rebase",
+            "--autostash",
+            f"origin/{self._default_branch}",
         )
         if returncode != 0:
             logger.warning("Rebase failed in %s — aborting and resetting", workspace_dir)
             await self._run_git_checked("-C", workspace_dir, "rebase", "--abort")
             await self._run_git_checked(
-                "-C", workspace_dir,
-                "reset", "--hard", f"origin/{self._default_branch}",
+                "-C",
+                workspace_dir,
+                "reset",
+                "--hard",
+                f"origin/{self._default_branch}",
             )
 
     # -- Git helpers --------------------------------------------------------
 
     async def _run_git(self, *args: str) -> None:
         proc = await asyncio.create_subprocess_exec(
-            "git", *args,
+            "git",
+            *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await proc.communicate()
+        _stdout, stderr = await proc.communicate()
 
         if proc.returncode != 0:
             cmd_str = " ".join(["git", *args])
-            raise RuntimeError(
-                f"git command failed (exit {proc.returncode}): {cmd_str}\n"
-                f"stderr: {stderr.decode()}"
-            )
+            raise RuntimeError(f"git command failed (exit {proc.returncode}): {cmd_str}\nstderr: {stderr.decode()}")
 
     async def _run_git_checked(self, *args: str) -> tuple[int, str, str]:
         proc = await asyncio.create_subprocess_exec(
-            "git", *args,
+            "git",
+            *args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )

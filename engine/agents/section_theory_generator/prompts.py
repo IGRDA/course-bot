@@ -151,7 +151,7 @@ SECTION_THEORY_TEMPLATE = """
 COURSE CONTEXT
 =====================================
 - Course Title: {course_title}
-- Module: {module_title}  
+- Module: {module_title}
 - Submodule: {submodule_title}
 - Section: {section_title}
 - Target Language: {language}
@@ -209,38 +209,56 @@ Write the ENTIRE content exclusively in {language}. Every single word, phrase, s
 Generate comprehensive theory content for this section:
 """
 
+
 # Create the prompt template with all components
 def get_section_theory_prompt():
     """Returns the section theory prompt template with all guideline components."""
     return PromptTemplate(
         template=SECTION_THEORY_TEMPLATE,
         input_variables=[
-            "course_title", "module_title", "submodule_title", "section_title",
-            "language", "sibling_summaries", "style_guidelines", "n_words",
-            "course_outline", "same_module_sections", "audience_guidelines"
+            "course_title",
+            "module_title",
+            "submodule_title",
+            "section_title",
+            "language",
+            "sibling_summaries",
+            "style_guidelines",
+            "n_words",
+            "course_outline",
+            "same_module_sections",
+            "audience_guidelines",
         ],
         partial_variables={
             "expert_role": EXPERT_ROLE,
             "tone_framework": TONE_FRAMEWORK,
             "quality_standards": QUALITY_STANDARDS,
-            "verification_mandate": VERIFICATION_MANDATE
-        }
+            "verification_mandate": VERIFICATION_MANDATE,
+        },
     )
+
 
 # Backward-compatible template (populated with defaults)
 section_theory_prompt = PromptTemplate(
     template=SECTION_THEORY_TEMPLATE,
     input_variables=[
-        "course_title", "module_title", "submodule_title", "section_title",
-        "language", "sibling_summaries", "style_guidelines", "n_words",
-        "course_outline", "same_module_sections", "audience_guidelines"
+        "course_title",
+        "module_title",
+        "submodule_title",
+        "section_title",
+        "language",
+        "sibling_summaries",
+        "style_guidelines",
+        "n_words",
+        "course_outline",
+        "same_module_sections",
+        "audience_guidelines",
     ],
     partial_variables={
         "expert_role": EXPERT_ROLE,
         "tone_framework": TONE_FRAMEWORK,
         "quality_standards": QUALITY_STANDARDS,
-        "verification_mandate": VERIFICATION_MANDATE
-    }
+        "verification_mandate": VERIFICATION_MANDATE,
+    },
 )
 
 
@@ -249,8 +267,11 @@ section_theory_prompt = PromptTemplate(
 # ============================================================================
 
 # Prompt for generating verification queries from section content
-query_generation_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert fact-checker for educational content. Your task is to generate exactly {k} search queries to verify the factual accuracy and currency of the course section content.
+query_generation_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert fact-checker for educational content. Your task is to generate exactly {k} search queries to verify the factual accuracy and currency of the course section content.
 
 Your queries should investigate:
 - Accuracy of formulas, equations, and mathematical expressions
@@ -270,8 +291,11 @@ Generate queries that will reveal:
 ✓ If there are newer standards or updated information
 ✓ If numerical data and statistics are accurate
 
-Focus on verifiable facts, not subjective opinions or writing style."""),
-    ("user", """Course Section Context:
+Focus on verifiable facts, not subjective opinions or writing style.""",
+        ),
+        (
+            "user",
+            """Course Section Context:
 Title: {section_title}
 Module: {module_title}
 Submodule: {submodule_title}
@@ -279,13 +303,18 @@ Submodule: {submodule_title}
 Section Content:
 {theory}
 
-Generate exactly {k} targeted search queries to verify the factual accuracy of the content above.""")
-])
+Generate exactly {k} targeted search queries to verify the factual accuracy of the content above.""",
+        ),
+    ]
+)
 
 
 # Prompt for reflecting on content quality based on search results
-reflection_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are an expert educational content reviewer. Analyze the course section content and identify factual errors, outdated information, or improvements needed.
+reflection_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            """You are an expert educational content reviewer. Analyze the course section content and identify factual errors, outdated information, or improvements needed.
 
 IMPORTANT: Only consider search results that are:
 - Relevant to the section topic
@@ -306,8 +335,11 @@ Be specific in your critique. Point out:
 ✓ Missing important details
 ✓ Corrections needed based on search results
 
-Be constructive but thorough. If the content is accurate, acknowledge it."""),
-    ("user", """Course Section Context:
+Be constructive but thorough. If the content is accurate, acknowledge it.""",
+        ),
+        (
+            "user",
+            """Course Section Context:
 Title: {section_title}
 Module: {module_title}
 Submodule: {submodule_title}
@@ -318,13 +350,18 @@ Current Section Content:
 Verification Search Results:
 {search_results}
 
-Provide a detailed critique identifying any factual errors, outdated information, or needed improvements based on the search results.""")
-])
+Provide a detailed critique identifying any factual errors, outdated information, or needed improvements based on the search results.""",
+        ),
+    ]
+)
 
 
 # Prompt for regenerating improved content based on reflection
-regeneration_prompt = ChatPromptTemplate.from_messages([
-    ("system", f"""{EXPERT_ROLE}
+regeneration_prompt = ChatPromptTemplate.from_messages(
+    [
+        (
+            "system",
+            f"""{EXPERT_ROLE}
 
 Your task is to improve the section content by incorporating the feedback and corrections identified in the reflection.
 
@@ -364,8 +401,11 @@ Before outputting, verify that your improved content:
 ✓ Maintains high information density with zero filler
 ✓ Is factually accurate and current
 ✓ Follows the target language requirement
-✓ Matches the target audience level"""),
-    ("user", """Course Section Context:
+✓ Matches the target audience level""",
+        ),
+        (
+            "user",
+            """Course Section Context:
 Title: {section_title}
 Module: {module_title}
 Submodule: {submodule_title}
@@ -382,5 +422,7 @@ Reflection and Corrections Needed:
 Search Results for Reference:
 {search_results}
 
-Generate the improved section content incorporating all necessary corrections and improvements:""")
-])
+Generate the improved section content incorporating all necessary corrections and improvements:""",
+        ),
+    ]
+)

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import threading
-from typing import Callable, Generic, TypeVar
+from collections.abc import Callable
+from typing import Generic, TypeVar
 
-from bot.webhook.types import Filter, FilterFunc
+from bot.webhook.types import Filter
 
 T = TypeVar("T")
 
@@ -13,6 +14,7 @@ T = TypeVar("T")
 # ---------------------------------------------------------------------------
 # Chain
 # ---------------------------------------------------------------------------
+
 
 class ChainFilters(Generic[T]):
     """Combines multiple filters — all must pass for the event to proceed."""
@@ -31,6 +33,7 @@ class ChainFilters(Generic[T]):
 # ---------------------------------------------------------------------------
 # Idempotency
 # ---------------------------------------------------------------------------
+
 
 class MemoryIdempotencyStore:
     """Simple in-memory idempotency store (single-instance only)."""
@@ -72,6 +75,7 @@ class IdempotencyFilter(Generic[T]):
 # ---------------------------------------------------------------------------
 # Mention
 # ---------------------------------------------------------------------------
+
 
 class MentionFilter(Generic[T]):
     """Checks if a specific username is mentioned in the event text."""

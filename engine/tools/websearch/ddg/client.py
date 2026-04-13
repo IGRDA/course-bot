@@ -45,7 +45,7 @@ def web_search(
             region,
             str(e),
         )
-        return f"Search failed: {str(e)}"
+        return f"Search failed: {e!s}"
 
 
 if __name__ == "__main__":

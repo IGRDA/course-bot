@@ -63,10 +63,7 @@ class ClaudeClient:
         if isinstance(raw, str):
             text = raw
         elif isinstance(raw, list):
-            text = "\n".join(
-                item.get("text", "") if isinstance(item, dict) else str(item)
-                for item in raw
-            )
+            text = "\n".join(item.get("text", "") if isinstance(item, dict) else str(item) for item in raw)
         else:
             text = str(raw)
 
@@ -99,7 +96,7 @@ class ClaudeClient:
                 self._execute_query(user_text, cwd),
                 timeout=self._response_timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "Claude response timed out after %.0fs for prompt: %s",
                 self._response_timeout,
@@ -160,11 +157,7 @@ class ClaudeClient:
                                 str(getattr(block, "input", ""))[:300],
                             )
                 elif isinstance(message, UserMessage):
-                    blocks = (
-                        message.content
-                        if isinstance(message.content, list)
-                        else []
-                    )
+                    blocks = message.content if isinstance(message.content, list) else []
                     for block in blocks:
                         if isinstance(block, ToolResultBlock):
                             self._log_tool_result(block)
@@ -181,8 +174,7 @@ class ClaudeClient:
         except Exception as exc:
             if parts:
                 logger.warning(
-                    "Claude CLI exited with error after producing output, "
-                    "using collected response: %s — %s",
+                    "Claude CLI exited with error after producing output, using collected response: %s — %s",
                     type(exc).__name__,
                     str(exc)[:200],
                 )

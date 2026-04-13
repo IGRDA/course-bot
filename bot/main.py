@@ -23,10 +23,10 @@ from bot.job.dispatcher import JobDispatcher
 from bot.server.server import AppServer
 from bot.slack.webhook_handler import new_bot_webhook
 
-
 # ---------------------------------------------------------------------------
 # GCP-friendly structured JSON logging
 # ---------------------------------------------------------------------------
+
 
 class _GCPFormatter(logging.Formatter):
     """Emit one JSON object per log line using Cloud Logging severity names."""

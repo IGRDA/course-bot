@@ -13,28 +13,28 @@ Generates a complete course from a topic using:
 9. Relevant people generation (optional)
 """
 
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 
-from workflows.state import CourseState, CourseConfig
-from workflows.output_manager import OutputManager
 from workflows.nodes import (
-    generate_index_node,
-    generate_theories_node,
-    generate_activities_node,
     calculate_metadata_node,
+    generate_activities_node,
+    generate_bibliography_node,
     generate_html_node,
     generate_images_node,
-    generate_videos_node,
-    generate_bibliography_node,
-    generate_people_node,
+    generate_index_node,
     generate_mindmap_node,
+    generate_people_node,
+    generate_theories_node,
+    generate_videos_node,
 )
+from workflows.output_manager import OutputManager
+from workflows.state import CourseConfig, CourseState
 
 
 def build_course_generation_graph():
     """Build and return the course generation graph."""
     graph = StateGraph(CourseState)
-    
+
     # Add nodes for complete course generation pipeline
     graph.add_node("generate_index", generate_index_node)
     graph.add_node("generate_theories", generate_theories_node)
@@ -46,7 +46,7 @@ def build_course_generation_graph():
     graph.add_node("generate_bibliography", generate_bibliography_node)
     graph.add_node("generate_people", generate_people_node)
     graph.add_node("generate_mindmap", generate_mindmap_node)
-    
+
     # Add edges for sequential execution
     graph.add_edge(START, "generate_index")
     graph.add_edge("generate_index", "generate_theories")
@@ -59,15 +59,15 @@ def build_course_generation_graph():
     graph.add_edge("generate_bibliography", "generate_people")
     graph.add_edge("generate_people", "generate_mindmap")
     graph.add_edge("generate_mindmap", END)
-    
+
     return graph.compile()
 
 
 if __name__ == "__main__":
     import argparse
-    
+
     from LLMs.text2text.health_check import validate_provider_keys
-    
+
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Generate a course")
     parser.add_argument("--total-pages", type=int, default=2, help="Total pages for the course (default: 2)")
@@ -77,12 +77,12 @@ if __name__ == "__main__":
         help="No web search; content from theory only (research and reflection disabled).",
     )
     args = parser.parse_args()
-    
+
     validate_provider_keys("mistral")
-    
+
     # Build the graph
     app = build_course_generation_graph()
-    
+
     # Create initial CourseState with config and minimal content
     course_config = CourseConfig(
         title="Quantum Theory",
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         web_search_provider="ddg",  # Web search provider: ddg | tavily | wikipedia
         total_pages=args.total_pages,  # Total pages for the course
         words_per_page=400,  # Target words per page
-        language="Español",        
+        language="Español",
         description="",
         max_retries=8,
         concurrency=20,  # Number of concurrent section theory generations
@@ -122,51 +122,47 @@ if __name__ == "__main__":
         target_audience=None,  # Target audience: None | "kids" | "general" | "advanced"
         # Video generation configuration
         generate_videos=True,  # Enable video recommendations
-        videos_per_module=3,   # Number of videos per module
+        videos_per_module=3,  # Number of videos per module
         # Bibliography generation configuration
         generate_bibliography=True,  # Enable book bibliography
         bibliography_books_per_module=5,  # Number of books per module
         bibliography_articles_per_module=5,  # Number of articles per module
         # People generation configuration
         generate_people=True,  # Enable relevant people
-        people_per_module=3,   # Number of people per module
+        people_per_module=3,  # Number of people per module
         # Mind map generation configuration
         generate_mindmap=True,  # Enable mind map generation
-        mindmap_max_nodes=20,   # Maximum nodes per mind map
+        mindmap_max_nodes=20,  # Maximum nodes per mind map
     )
-    
+
     initial_state = CourseState(
         config=course_config,
         title=course_config.title,  # Initialize from config, can be refined during generation
-        modules=[]  # Will be populated by skeleton generation
+        modules=[],  # Will be populated by skeleton generation
     )
-    
+
     # Create OutputManager for this run (creates timestamped folder)
     output_mgr = OutputManager(title=course_config.title)
     print(f"📁 Output folder: {output_mgr.get_run_folder()}")
-    
+
     # Run the graph with OutputManager passed via configurable
     result = app.invoke(
-        initial_state,
-        config={
-            "run_name": f"{initial_state.title}",
-            "configurable": {"output_manager": output_mgr}
-        }
+        initial_state, config={"run_name": f"{initial_state.title}", "configurable": {"output_manager": output_mgr}}
     )
-    
+
     # Print the final course state
     print("\nWorkflow completed successfully!")
-    
+
     # Extract the final state from LangGraph result (which is a dictionary)
     final_state = result if isinstance(result, CourseState) else CourseState.model_validate(result)
-    
+
     # Save final outputs: course.json, course.html, and individual modules
     output_mgr.save_final(final_state)
     output_mgr.save_modules(final_state)
-    
+
     # Print summary
     total_sections = sum(len(s.sections) for m in final_state.modules for s in m.submodules)
-    print(f"\n📊 Course Summary:")
+    print("\n📊 Course Summary:")
     print(f"   Title: {final_state.title}")
     print(f"   Modules: {len(final_state.modules)}")
     print(f"   Total Sections: {total_sections}")

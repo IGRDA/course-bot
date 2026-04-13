@@ -1,3 +1,3 @@
-from .factory import create_web_search, available_search_providers
+from .factory import available_search_providers, create_web_search
 
-__all__ = ["create_web_search", "available_search_providers"]
+__all__ = ["available_search_providers", "create_web_search"]

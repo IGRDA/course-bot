@@ -11,10 +11,10 @@ import pytest
 
 from bot.internal.slack_service import SlackService
 
-
 # ---------------------------------------------------------------------------
 # _get_running_pids
 # ---------------------------------------------------------------------------
+
 
 class TestGetRunningPids:
     def test_returns_set_of_ints(self):
@@ -39,16 +39,20 @@ class TestGetRunningPids:
 # _wait_for_subprocesses
 # ---------------------------------------------------------------------------
 
+
 class TestWaitForSubprocesses:
     @pytest.mark.asyncio
     async def test_returns_immediately_when_no_new_pids(self):
         """If no new PIDs appeared, the method should return right away."""
         svc = SlackService(
-            platform=MagicMock(), bot_user_id="U123",
+            platform=MagicMock(),
+            bot_user_id="U123",
         )
         baseline = {1, 10, 20}
         with patch.object(
-            SlackService, "_get_running_pids", return_value={1, 10, 20},
+            SlackService,
+            "_get_running_pids",
+            return_value={1, 10, 20},
         ):
             await svc._wait_for_subprocesses(baseline, timeout=5, poll_interval=0.1)
 
@@ -56,7 +60,8 @@ class TestWaitForSubprocesses:
     async def test_waits_until_spawned_processes_exit(self):
         """Should poll until spawned PIDs disappear."""
         svc = SlackService(
-            platform=MagicMock(), bot_user_id="U123",
+            platform=MagicMock(),
+            bot_user_id="U123",
         )
         baseline = {1, 10}
         call_count = 0
@@ -69,10 +74,14 @@ class TestWaitForSubprocesses:
             return {1, 10}
 
         with patch.object(
-            SlackService, "_get_running_pids", side_effect=_fake_pids,
+            SlackService,
+            "_get_running_pids",
+            side_effect=_fake_pids,
         ):
             await svc._wait_for_subprocesses(
-                baseline, timeout=5, poll_interval=0.05,
+                baseline,
+                timeout=5,
+                poll_interval=0.05,
             )
         assert call_count == 3
 
@@ -80,56 +89,70 @@ class TestWaitForSubprocesses:
     async def test_respects_timeout(self):
         """Should stop waiting after timeout even if processes remain."""
         svc = SlackService(
-            platform=MagicMock(), bot_user_id="U123",
+            platform=MagicMock(),
+            bot_user_id="U123",
         )
         baseline = {1}
         with patch.object(
-            SlackService, "_get_running_pids", return_value={1, 999},
+            SlackService,
+            "_get_running_pids",
+            return_value={1, 999},
         ):
             await svc._wait_for_subprocesses(
-                baseline, timeout=0.15, poll_interval=0.05,
+                baseline,
+                timeout=0.15,
+                poll_interval=0.05,
             )
 
     @pytest.mark.asyncio
     async def test_handles_cancelled_error_gracefully(self):
         """CancelledError during sleep should not crash the method."""
         svc = SlackService(
-            platform=MagicMock(), bot_user_id="U123",
+            platform=MagicMock(),
+            bot_user_id="U123",
         )
         baseline = {1}
         with (
             patch.object(
-                SlackService, "_get_running_pids", return_value={1, 50, 221},
+                SlackService,
+                "_get_running_pids",
+                return_value={1, 50, 221},
             ),
-            patch("bot.internal.slack_service.asyncio.sleep",
-                  side_effect=asyncio.CancelledError("cancel scope leak")),
+            patch("bot.internal.slack_service.asyncio.sleep", side_effect=asyncio.CancelledError("cancel scope leak")),
         ):
             await svc._wait_for_subprocesses(
-                baseline, timeout=5, poll_interval=0.1,
+                baseline,
+                timeout=5,
+                poll_interval=0.1,
             )
 
     @pytest.mark.asyncio
     async def test_handles_runtime_error_during_sleep(self):
         """RuntimeError during sleep (e.g. closed event loop) should not crash."""
         svc = SlackService(
-            platform=MagicMock(), bot_user_id="U123",
+            platform=MagicMock(),
+            bot_user_id="U123",
         )
         baseline = {1}
         with (
             patch.object(
-                SlackService, "_get_running_pids", return_value={1, 50},
+                SlackService,
+                "_get_running_pids",
+                return_value={1, 50},
             ),
-            patch("bot.internal.slack_service.asyncio.sleep",
-                  side_effect=RuntimeError("Event loop is closed")),
+            patch("bot.internal.slack_service.asyncio.sleep", side_effect=RuntimeError("Event loop is closed")),
         ):
             await svc._wait_for_subprocesses(
-                baseline, timeout=5, poll_interval=0.1,
+                baseline,
+                timeout=5,
+                poll_interval=0.1,
             )
 
 
 # ---------------------------------------------------------------------------
 # _zip_directory
 # ---------------------------------------------------------------------------
+
 
 class TestZipDirectory:
     def test_returns_none_when_dir_missing(self):
@@ -155,6 +178,7 @@ class TestZipDirectory:
             assert zip_path.endswith(".zip")
 
             import zipfile
+
             with zipfile.ZipFile(zip_path) as zf:
                 names = set(zf.namelist())
                 assert "report.pdf" in names
@@ -166,6 +190,7 @@ class TestZipDirectory:
 # ---------------------------------------------------------------------------
 # _process_and_respond — integration-style with mocks
 # ---------------------------------------------------------------------------
+
 
 class TestProcessAndRespondWaitsForSubprocesses:
     @pytest.mark.asyncio
@@ -180,7 +205,9 @@ class TestProcessAndRespondWaitsForSubprocesses:
         claude.cwd = "/tmp/test-cwd"
 
         svc = SlackService(
-            platform=platform, bot_user_id="U123", claude_client=claude,
+            platform=platform,
+            bot_user_id="U123",
+            claude_client=claude,
         )
 
         call_order: list[str] = []
@@ -226,7 +253,9 @@ class TestProcessAndRespondWaitsForSubprocesses:
         claude.cwd = "/tmp/test-cwd"
 
         svc = SlackService(
-            platform=platform, bot_user_id="U123", claude_client=claude,
+            platform=platform,
+            bot_user_id="U123",
+            claude_client=claude,
         )
 
         async def _exploding_wait(*a, **kw):

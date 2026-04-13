@@ -64,9 +64,7 @@ def _load_all_keys_from_secrets(env_var: str) -> list[str]:
     """
     if _SECRETS_FILE.exists():
         text = _SECRETS_FILE.read_text()
-        match = re.search(
-            rf"^export\s+{re.escape(env_var)}=(.+)$", text, re.MULTILINE
-        )
+        match = re.search(rf"^export\s+{re.escape(env_var)}=(.+)$", text, re.MULTILINE)
         if match:
             return parse_api_keys(match.group(1))
 

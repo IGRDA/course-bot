@@ -1,8 +1,8 @@
 """Unit tests for tools/peoplesearch/models.py"""
 
 import importlib.util
-import sys
 from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 

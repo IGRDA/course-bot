@@ -4,39 +4,35 @@ CLI for testing bibliography generation iteratively.
 Usage:
     # Test with a sample quantum theory module (Spanish)
     python -m agents.bibliography_generator --topic "Quantum Theory" --language es
-    
+
     # Test with a sample machine learning module (English)
     python -m agents.bibliography_generator --topic "Machine Learning" --language en
-    
+
     # Test with custom module title
     python -m agents.bibliography_generator --module-title "Wave-particle duality" --language en
-    
+
     # Test with more books/articles
     python -m agents.bibliography_generator --topic "Quantum Theory" --num-books 5 --num-articles 5
-    
+
     # Validate URLs
     python -m agents.bibliography_generator --topic "Quantum Theory" --validate-urls
 """
 
 import argparse
 import json
-import sys
 import logging
+import sys
 from typing import Any
 
-from workflows.state import Module, Submodule, Section
+from workflows.state import Module, Section, Submodule
+
 from .agent import (
-    _search_books_for_module,
     _search_articles_for_module,
-    _format_book_apa7,
-    _format_article_apa7,
+    _search_books_for_module,
 )
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s: %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -65,9 +61,9 @@ SAMPLE_MODULES = {
                         description="Relación entre longitud de onda y momento",
                         summary="Analiza la ecuación de De Broglie y su significado físico.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "quantum_en": Module(
         title="Wave-Particle Duality and the Double-Slit Experiment",
@@ -92,9 +88,9 @@ SAMPLE_MODULES = {
                         description="Relationship between wavelength and momentum",
                         summary="Analyzes the De Broglie equation and its physical meaning.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "ml_en": Module(
         title="Deep Learning and Neural Networks",
@@ -119,9 +115,9 @@ SAMPLE_MODULES = {
                         description="Training neural networks",
                         summary="Explains the backpropagation algorithm and optimization techniques.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "ml_es": Module(
         title="Aprendizaje Profundo y Redes Neuronales",
@@ -146,14 +142,13 @@ SAMPLE_MODULES = {
                         description="Entrenamiento de redes neuronales",
                         summary="Explica el algoritmo de retropropagación y técnicas de optimización.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     # ========================================================================
     # DIVERSE TEST TOPICS - For generalization testing
     # ========================================================================
-    
     # English Topics (4 diverse domains)
     "renaissance_en": Module(
         title="Renaissance Art History: Masters and Movements",
@@ -178,9 +173,9 @@ SAMPLE_MODULES = {
                         description="Sculpture, painting, and architecture",
                         summary="Analyzes the Sistine Chapel ceiling and David sculpture.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "climate_en": Module(
         title="Climate Change and Ecosystem Dynamics",
@@ -205,9 +200,9 @@ SAMPLE_MODULES = {
                         description="How ecosystems adapt and migrate",
                         summary="Covers species migration, phenological shifts, and ecosystem tipping points.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "cbt_en": Module(
         title="Cognitive Behavioral Therapy: Theory and Practice",
@@ -232,9 +227,9 @@ SAMPLE_MODULES = {
                         description="Exposure therapy and behavioral activation",
                         summary="Covers systematic desensitization, behavioral experiments, and activity scheduling.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "roman_en": Module(
         title="Ancient Roman Architecture and Engineering",
@@ -259,11 +254,10 @@ SAMPLE_MODULES = {
                         description="Water systems and urban planning",
                         summary="Covers the Roman aqueduct system, sewers, and urban infrastructure.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
-    
     # Spanish Topics (4 diverse domains)
     "siglo_oro_es": Module(
         title="Literatura del Siglo de Oro Español",
@@ -288,9 +282,9 @@ SAMPLE_MODULES = {
                         description="Lazarillo de Tormes y el Buscón",
                         summary="Examina el género picaresco y su crítica social.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "economia_es": Module(
         title="Economía del Desarrollo y Políticas Públicas",
@@ -315,9 +309,9 @@ SAMPLE_MODULES = {
                         description="Estrategias y programas de desarrollo",
                         summary="Analiza programas de transferencias condicionadas y microfinanzas.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "biologia_es": Module(
         title="Biología Marina y Ecosistemas Oceánicos",
@@ -342,9 +336,9 @@ SAMPLE_MODULES = {
                         description="Productividad primaria y redes alimentarias",
                         summary="Cubre el fitoplancton, zooplancton y flujos de energía oceánicos.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
     "derecho_es": Module(
         title="Derecho Constitucional y Derechos Fundamentales",
@@ -369,9 +363,9 @@ SAMPLE_MODULES = {
                         description="Garantías constitucionales y su protección",
                         summary="Examina los derechos civiles, políticos y sociales en la constitución.",
                     ),
-                ]
+                ],
             )
-        ]
+        ],
     ),
 }
 
@@ -379,19 +373,19 @@ SAMPLE_MODULES = {
 def validate_url(url: str, timeout: int = 5) -> tuple[bool, str]:
     """
     Validate a URL by making a HEAD request.
-    
+
     Args:
         url: URL to validate
         timeout: Request timeout in seconds
-        
+
     Returns:
         Tuple of (is_valid, status_message)
     """
     import requests
-    
+
     if not url:
         return False, "Empty URL"
-    
+
     try:
         # Use HEAD request to avoid downloading content
         response = requests.head(url, timeout=timeout, allow_redirects=True)
@@ -415,7 +409,7 @@ def print_book_result(book: Any, index: int, validate: bool = False) -> dict:
     print(f"      Publisher: {book.publisher or 'N/A'}")
     print(f"      ISBN: {book.isbn or book.isbn_13 or 'N/A'}")
     print(f"      URL: {book.url or 'N/A'}")
-    
+
     metrics = {
         "has_authors": len(book.authors) > 0,
         "has_year": book.year is not None,
@@ -424,16 +418,16 @@ def print_book_result(book: Any, index: int, validate: bool = False) -> dict:
         "has_url": bool(book.url),
         "url_valid": None,
     }
-    
+
     if validate and book.url:
         is_valid, status = validate_url(book.url)
         metrics["url_valid"] = is_valid
         status_icon = "✅" if is_valid else "❌"
         print(f"      URL Status: {status_icon} {status}")
-    
+
     if book.apa_citation:
         print(f"      APA: {book.apa_citation[:100]}...")
-    
+
     return metrics
 
 
@@ -446,7 +440,7 @@ def print_article_result(article: dict, index: int, validate: bool = False) -> d
     print(f"      Citations: {article.get('citation_count') or 'N/A'}")
     print(f"      Source: {article.get('source')}")
     print(f"      URL: {article.get('url', 'N/A')}")
-    
+
     metrics = {
         "has_authors": len(article.get("authors", [])) > 0,
         "has_year": article.get("year") is not None,
@@ -457,16 +451,16 @@ def print_article_result(article: dict, index: int, validate: bool = False) -> d
         "url_valid": None,
         "source": article.get("source"),
     }
-    
+
     if validate and article.get("url"):
         is_valid, status = validate_url(article["url"])
         metrics["url_valid"] = is_valid
         status_icon = "✅" if is_valid else "❌"
         print(f"      URL Status: {status_icon} {status}")
-    
+
     if article.get("snippet"):
         print(f"      Snippet: {article['snippet'][:100]}...")
-    
+
     return metrics
 
 
@@ -490,33 +484,32 @@ def calculate_quality_score(book_metrics: list, article_metrics: list) -> dict:
             "valid_urls": sum(1 for m in article_metrics if m["url_valid"] is True),
             "invalid_urls": sum(1 for m in article_metrics if m["url_valid"] is False),
             "avg_citations": (
-                sum(m["citation_count"] for m in article_metrics) / len(article_metrics)
-                if article_metrics else 0
+                sum(m["citation_count"] for m in article_metrics) / len(article_metrics) if article_metrics else 0
             ),
         },
     }
-    
+
     # Calculate overall score (0-100)
     book_score = 0
     if scores["books"]["total"] > 0:
         book_score = (
-            (scores["books"]["with_isbn"] / scores["books"]["total"]) * 30 +
-            (scores["books"]["with_year"] / scores["books"]["total"]) * 20 +
-            (scores["books"]["with_publisher"] / scores["books"]["total"]) * 20 +
-            (min(scores["books"]["total"], 5) / 5) * 30  # Coverage score
+            (scores["books"]["with_isbn"] / scores["books"]["total"]) * 30
+            + (scores["books"]["with_year"] / scores["books"]["total"]) * 20
+            + (scores["books"]["with_publisher"] / scores["books"]["total"]) * 20
+            + (min(scores["books"]["total"], 5) / 5) * 30  # Coverage score
         )
-    
+
     article_score = 0
     if scores["articles"]["total"] > 0:
         article_score = (
-            (scores["articles"]["with_venue"] / scores["articles"]["total"]) * 20 +
-            (scores["articles"]["high_citations"] / scores["articles"]["total"]) * 30 +
-            (scores["articles"]["with_abstract"] / scores["articles"]["total"]) * 20 +
-            (min(scores["articles"]["total"], 5) / 5) * 30  # Coverage score
+            (scores["articles"]["with_venue"] / scores["articles"]["total"]) * 20
+            + (scores["articles"]["high_citations"] / scores["articles"]["total"]) * 30
+            + (scores["articles"]["with_abstract"] / scores["articles"]["total"]) * 20
+            + (min(scores["articles"]["total"], 5) / 5) * 30  # Coverage score
         )
-    
+
     scores["overall_score"] = (book_score + article_score) / 2
-    
+
     return scores
 
 
@@ -531,22 +524,22 @@ def run_test(
     validate_urls: bool,
 ) -> dict:
     """Run a single bibliography test."""
-    
-    print(f"\n{'='*70}")
-    print(f"📖 Testing Bibliography Generation")
-    print(f"{'='*70}")
+
+    print(f"\n{'=' * 70}")
+    print("📖 Testing Bibliography Generation")
+    print(f"{'=' * 70}")
     print(f"Course Title: {course_title}")
     print(f"Module: {module.title}")
     print(f"Language: {language}")
     print(f"Target: {num_books} books, {num_articles} articles")
     print(f"LLM Provider: {llm_provider}")
     print(f"Article Provider: {article_provider}")
-    print(f"{'='*70}")
-    
+    print(f"{'=' * 70}")
+
     existing_keys: set[str] = set()
-    
+
     # Search for books
-    print(f"\n🔍 Searching for books...")
+    print("\n🔍 Searching for books...")
     books, existing_keys = _search_books_for_module(
         module=module,
         course_title=course_title,
@@ -555,15 +548,15 @@ def run_test(
         num_books=num_books,
         existing_keys=existing_keys,
     )
-    
+
     print(f"\n📚 BOOKS FOUND: {len(books)}")
     book_metrics = []
     for i, book in enumerate(books, 1):
         metrics = print_book_result(book, i, validate=validate_urls)
         book_metrics.append(metrics)
-    
+
     # Search for articles
-    print(f"\n🔍 Searching for articles...")
+    print("\n🔍 Searching for articles...")
     articles, existing_keys = _search_articles_for_module(
         module=module,
         language=language,
@@ -571,19 +564,19 @@ def run_test(
         num_articles=num_articles,
         existing_keys=existing_keys,
     )
-    
+
     print(f"\n📄 ARTICLES FOUND: {len(articles)}")
     article_metrics = []
     for i, article in enumerate(articles, 1):
         metrics = print_article_result(article, i, validate=validate_urls)
         article_metrics.append(metrics)
-    
+
     # Calculate quality scores
     scores = calculate_quality_score(book_metrics, article_metrics)
-    
-    print(f"\n{'='*70}")
-    print(f"📊 QUALITY REPORT")
-    print(f"{'='*70}")
+
+    print(f"\n{'=' * 70}")
+    print("📊 QUALITY REPORT")
+    print(f"{'=' * 70}")
     print(f"Books: {scores['books']['total']} found")
     print(f"  - With ISBN: {scores['books']['with_isbn']}")
     print(f"  - With Year: {scores['books']['with_year']}")
@@ -591,7 +584,7 @@ def run_test(
     if validate_urls:
         print(f"  - Valid URLs: {scores['books']['valid_urls']}")
         print(f"  - Invalid URLs: {scores['books']['invalid_urls']}")
-    
+
     print(f"\nArticles: {scores['articles']['total']} found")
     print(f"  - With Venue: {scores['articles']['with_venue']}")
     print(f"  - With Citations: {scores['articles']['with_citations']}")
@@ -601,10 +594,10 @@ def run_test(
     if validate_urls:
         print(f"  - Valid URLs: {scores['articles']['valid_urls']}")
         print(f"  - Invalid URLs: {scores['articles']['invalid_urls']}")
-    
+
     print(f"\n⭐ OVERALL QUALITY SCORE: {scores['overall_score']:.1f}/100")
-    print(f"{'='*70}")
-    
+    print(f"{'=' * 70}")
+
     return {
         "books": [b.model_dump() if hasattr(b, "model_dump") else b for b in books],
         "articles": articles,
@@ -625,77 +618,91 @@ Examples:
     python -m agents.bibliography_generator --topic quantum --validate-urls
         """,
     )
-    
+
     parser.add_argument(
-        "--topic", "-t",
+        "--topic",
+        "-t",
         choices=[
-            "quantum", "ml",  # Original STEM topics
-            "renaissance", "climate", "cbt", "roman",  # English diverse topics
-            "siglo_oro", "economia", "biologia", "derecho",  # Spanish diverse topics
+            "quantum",
+            "ml",  # Original STEM topics
+            "renaissance",
+            "climate",
+            "cbt",
+            "roman",  # English diverse topics
+            "siglo_oro",
+            "economia",
+            "biologia",
+            "derecho",  # Spanish diverse topics
         ],
         help="Use a predefined sample topic (quantum, ml, renaissance, climate, cbt, roman, siglo_oro, economia, biologia, derecho)",
     )
-    
+
     parser.add_argument(
-        "--module-title", "-m",
+        "--module-title",
+        "-m",
         help="Custom module title to test with",
     )
-    
+
     parser.add_argument(
-        "--language", "-l",
+        "--language",
+        "-l",
         choices=["en", "es"],
         default="en",
         help="Language for the content (default: en)",
     )
-    
+
     parser.add_argument(
-        "--num-books", "-b",
+        "--num-books",
+        "-b",
         type=int,
         default=5,
         help="Number of books to find (default: 5)",
     )
-    
+
     parser.add_argument(
-        "--num-articles", "-a",
+        "--num-articles",
+        "-a",
         type=int,
         default=5,
         help="Number of articles to find (default: 5)",
     )
-    
+
     parser.add_argument(
         "--llm-provider",
         default="mistral",
         help="LLM provider for book suggestions (default: mistral)",
     )
-    
+
     parser.add_argument(
         "--article-provider",
         default="openalex",
         help="Article search provider (default: openalex)",
     )
-    
+
     parser.add_argument(
-        "--validate-urls", "-v",
+        "--validate-urls",
+        "-v",
         action="store_true",
         help="Validate URLs with HTTP HEAD requests",
     )
-    
+
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         help="Output results to JSON file",
     )
-    
+
     parser.add_argument(
         "--debug",
         action="store_true",
         help="Enable debug logging",
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
-    
+
     # Determine which module to use
     if args.topic:
         # Map topic to module key and course title
@@ -711,9 +718,9 @@ Examples:
             "biologia": ("biologia", "Biología Marina"),
             "derecho": ("derecho", "Derecho Constitucional"),
         }
-        
+
         topic_key, course_title = topic_config.get(args.topic, (args.topic, args.topic))
-        
+
         # Build module key with language suffix
         key = f"{topic_key}_{args.language}"
         if key not in SAMPLE_MODULES:
@@ -722,11 +729,11 @@ Examples:
             if key not in SAMPLE_MODULES:
                 # Try Spanish version
                 key = f"{topic_key}_es"
-        
+
         if key not in SAMPLE_MODULES:
             parser.error(f"Topic '{args.topic}' with language '{args.language}' not found")
             return 1
-        
+
         module = SAMPLE_MODULES[key]
     elif args.module_title:
         # Create a simple module from the title
@@ -747,17 +754,17 @@ Examples:
                             description="",
                             summary="",
                         )
-                    ]
+                    ],
                 )
-            ]
+            ],
         )
         course_title = args.module_title
     else:
         parser.error("Either --topic or --module-title is required")
         return 1
-    
+
     language = "Español" if args.language == "es" else "English"
-    
+
     # Run the test
     results = run_test(
         module=module,
@@ -769,13 +776,13 @@ Examples:
         article_provider=args.article_provider,
         validate_urls=args.validate_urls,
     )
-    
+
     # Save output if requested
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
         print(f"\n💾 Results saved to {args.output}")
-    
+
     # Return success if we found at least some results
     if results["scores"]["overall_score"] >= 50:
         return 0
@@ -786,4 +793,3 @@ Examples:
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -10,7 +10,6 @@ Plus enrichment and summary generation prompts.
 
 from langchain.prompts import PromptTemplate
 
-
 # ============================================================================
 # STEP 1: MODULE EXTRACTION PROMPT
 # ============================================================================
@@ -53,7 +52,7 @@ Example:
   MÓDULO DE FORMACIÓN 1: ABCDEFG...
   OBJETIVO
   JKLMNOP...
-  
+
   → title: "ABCDEFG..."
   → description: "JKLMNOP..."
 
@@ -77,8 +76,7 @@ Return ONLY valid JSON. No code fences, no commentary.
 """
 
 extract_modules_prompt = PromptTemplate(
-    template=EXTRACT_MODULES_TEMPLATE,
-    input_variables=["pdf_markdown", "language", "format_instructions"]
+    template=EXTRACT_MODULES_TEMPLATE, input_variables=["pdf_markdown", "language", "format_instructions"]
 )
 
 
@@ -155,7 +153,7 @@ Return ONLY valid JSON. No code fences, no commentary.
 
 extract_submodules_prompt = PromptTemplate(
     template=EXTRACT_SUBMODULES_TEMPLATE,
-    input_variables=["pdf_markdown", "modules_structure", "language", "format_instructions"]
+    input_variables=["pdf_markdown", "modules_structure", "language", "format_instructions"],
 )
 
 
@@ -253,7 +251,7 @@ Return ONLY valid JSON. No code fences, no commentary.
 
 extract_sections_prompt = PromptTemplate(
     template=EXTRACT_SECTIONS_TEMPLATE,
-    input_variables=["pdf_markdown", "structure_with_submodules", "language", "format_instructions"]
+    input_variables=["pdf_markdown", "structure_with_submodules", "language", "format_instructions"],
 )
 
 
@@ -331,7 +329,7 @@ Return ONLY valid JSON. No code fences, no commentary.
 
 enrich_descriptions_prompt = PromptTemplate(
     template=ENRICH_DESCRIPTIONS_TEMPLATE,
-    input_variables=["course_title", "structure_json", "research_context", "language", "format_instructions"]
+    input_variables=["course_title", "structure_json", "research_context", "language", "format_instructions"],
 )
 
 
@@ -369,8 +367,7 @@ No code fences, no extra commentary.
 """
 
 pdf_query_generation_prompt = PromptTemplate(
-    template=PDF_QUERY_GENERATION_TEMPLATE,
-    input_variables=["course_title", "module_topics", "max_queries"]
+    template=PDF_QUERY_GENERATION_TEMPLATE, input_variables=["course_title", "module_topics", "max_queries"]
 )
 
 
@@ -411,7 +408,7 @@ Return ONLY valid JSON. No code fences, no extra commentary.
 
 pdf_research_synthesis_prompt = PromptTemplate(
     template=PDF_RESEARCH_SYNTHESIS_TEMPLATE,
-    input_variables=["course_title", "module_topics", "raw_research", "format_instructions"]
+    input_variables=["course_title", "module_topics", "raw_research", "format_instructions"],
 )
 
 
@@ -473,7 +470,7 @@ Return ONLY valid JSON. No code fences, no extra text.
 
 pdf_summary_generation_prompt = PromptTemplate(
     template=PDF_SUMMARY_GENERATION_TEMPLATE,
-    input_variables=["course_title", "module_title", "module_description", "language", "sections_list"]
+    input_variables=["course_title", "module_title", "module_description", "language", "sections_list"],
 )
 
 

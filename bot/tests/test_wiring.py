@@ -8,13 +8,11 @@ main.py and worker.py in production).
 from __future__ import annotations
 
 import ast
-import inspect
 import importlib
+import inspect
 from pathlib import Path
-from typing import Any
 
 import pytest
-
 
 APP_ROOT = Path(__file__).resolve().parent.parent
 
@@ -25,7 +23,9 @@ def _get_init_params(cls: type) -> set[str]:
     return {
         name
         for name, p in sig.parameters.items()
-        if name != "self" and p.kind in (
+        if name != "self"
+        and p.kind
+        in (
             inspect.Parameter.POSITIONAL_OR_KEYWORD,
             inspect.Parameter.KEYWORD_ONLY,
         )
@@ -56,17 +56,22 @@ class TestSlackServiceWiring:
 
     def test_init_signature_is_known(self):
         from bot.internal.slack_service import SlackService
+
         params = _get_init_params(SlackService)
         assert "platform" in params
         assert "bot_user_id" in params
         assert "claude_client" in params
 
-    @pytest.mark.parametrize("module_path", [
-        APP_ROOT / "main.py",
-        APP_ROOT / "job" / "worker.py",
-    ])
+    @pytest.mark.parametrize(
+        "module_path",
+        [
+            APP_ROOT / "main.py",
+            APP_ROOT / "job" / "worker.py",
+        ],
+    )
     def test_call_sites_match_signature(self, module_path: Path):
         from bot.internal.slack_service import SlackService
+
         accepted = _get_init_params(SlackService)
 
         source = module_path.read_text()
@@ -86,6 +91,7 @@ class TestJobDispatcherWiring:
 
     def test_call_sites_match_signature(self):
         from bot.job.dispatcher import JobDispatcher
+
         accepted = _get_init_params(JobDispatcher)
 
         source = (APP_ROOT / "main.py").read_text()
@@ -95,8 +101,7 @@ class TestJobDispatcherWiring:
         for lineno, kwargs in calls:
             unexpected = kwargs - accepted
             assert not unexpected, (
-                f"main.py:{lineno} passes unexpected kwargs "
-                f"to JobDispatcher: {unexpected}. Accepted: {accepted}"
+                f"main.py:{lineno} passes unexpected kwargs to JobDispatcher: {unexpected}. Accepted: {accepted}"
             )
 
 
@@ -123,6 +128,7 @@ class TestConfigWiring:
 
     def test_config_requires_env_vars(self):
         from bot.config import Config
+
         with pytest.raises(RuntimeError, match="SLACK_SIGNING_SECRET"):
             Config()
 
@@ -132,6 +138,7 @@ class TestConfigWiring:
         monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
         from bot.config import Config
+
         cfg = Config()
         assert cfg.slack_signing_secret == "test"
         assert cfg.gcp_project_id == "test-project"

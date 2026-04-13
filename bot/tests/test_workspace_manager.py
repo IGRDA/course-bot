@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -46,9 +45,11 @@ class TestFinalize:
                 return (0, "M somefile.py\n", "")
             return (0, "", "")
 
-        with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-            with patch("os.path.isdir", return_value=True):
-                await manager.finalize(workspace_info)
+        with (
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=True),
+        ):
+            await manager.finalize(workspace_info)
 
         commands = [" ".join(c) for c in git_calls]
         assert any("status" in c for c in commands)
@@ -69,9 +70,11 @@ class TestFinalize:
                 return (0, "", "")  # clean
             return (0, "", "")
 
-        with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-            with patch("os.path.isdir", return_value=True):
-                await manager.finalize(workspace_info)
+        with (
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=True),
+        ):
+            await manager.finalize(workspace_info)
 
     @pytest.mark.asyncio
     async def test_finalize_noop_if_dir_missing(self, manager):
@@ -105,18 +108,19 @@ class TestSetupImageSeed:
                 return (0, "", "")
             return (0, "", "")
 
-        with patch.object(manager, "_run_git", side_effect=mock_git):
-            with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-                with patch("os.path.isdir", return_value=False):
-                    with patch("shutil.copytree") as mock_copytree:
-                        info = await manager.setup("C123:1234.5678")
+        with (
+            patch.object(manager, "_run_git", side_effect=mock_git),
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=False),
+            patch("shutil.copytree") as mock_copytree,
+        ):
+            info = await manager.setup("C123:1234.5678")
 
         assert info.branch_name.startswith("session-")
         mock_copytree.assert_called_once()
 
         commands = [" ".join(c) for c in git_calls]
-        assert not any("clone" in c for c in commands), \
-            "Should NOT clone when seeding from image"
+        assert not any("clone" in c for c in commands), "Should NOT clone when seeding from image"
         assert any("init" in c for c in commands)
         assert any("remote" in c and "add" in c and "origin" in c for c in commands)
 
@@ -135,15 +139,16 @@ class TestSetupImageSeed:
                 return (0, "", "")  # no session branch
             return (0, "", "")  # fetch + reset both succeed
 
-        with patch.object(manager, "_run_git", side_effect=mock_git):
-            with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-                with patch("os.path.isdir", return_value=False):
-                    with patch("shutil.copytree"):
-                        await manager.setup("C123:new-thread")
+        with (
+            patch.object(manager, "_run_git", side_effect=mock_git),
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=False),
+            patch("shutil.copytree"),
+        ):
+            await manager.setup("C123:new-thread")
 
         commands = [" ".join(c) for c in git_calls]
-        assert any("reset" in c and "--soft" in c for c in commands), \
-            "Should graft onto origin/main with reset --soft"
+        assert any("reset" in c and "--soft" in c for c in commands), "Should graft onto origin/main with reset --soft"
 
     @pytest.mark.asyncio
     async def test_seed_works_when_fetch_fails(self, manager):
@@ -162,18 +167,18 @@ class TestSetupImageSeed:
                 return (128, "", "fatal: unable to access")
             return (0, "", "")
 
-        with patch.object(manager, "_run_git", side_effect=mock_git):
-            with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-                with patch("os.path.isdir", return_value=False):
-                    with patch("shutil.copytree"):
-                        info = await manager.setup("C123:offline-thread")
+        with (
+            patch.object(manager, "_run_git", side_effect=mock_git),
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=False),
+            patch("shutil.copytree"),
+        ):
+            info = await manager.setup("C123:offline-thread")
 
         assert info.branch_name.startswith("session-")
         commands = [" ".join(c) for c in git_calls]
-        assert not any("reset" in c and "--soft" in c for c in commands), \
-            "Should skip reset --soft when fetch fails"
-        assert any("commit" in c for c in commands), \
-            "Should still commit the seed"
+        assert not any("reset" in c and "--soft" in c for c in commands), "Should skip reset --soft when fetch fails"
+        assert any("commit" in c for c in commands), "Should still commit the seed"
 
     @pytest.mark.asyncio
     async def test_seed_creates_session_branch(self, manager):
@@ -189,17 +194,16 @@ class TestSetupImageSeed:
                 return (0, "", "")
             return (0, "", "")
 
-        with patch.object(manager, "_run_git", side_effect=mock_git):
-            with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-                with patch("os.path.isdir", return_value=False):
-                    with patch("shutil.copytree"):
-                        info = await manager.setup("C123:1234.5678")
+        with (
+            patch.object(manager, "_run_git", side_effect=mock_git),
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=False),
+            patch("shutil.copytree"),
+        ):
+            info = await manager.setup("C123:1234.5678")
 
         commands = [" ".join(c) for c in git_calls]
-        assert any(
-            "checkout" in c and "-b" in c and info.branch_name in c
-            for c in commands
-        )
+        assert any("checkout" in c and "-b" in c and info.branch_name in c for c in commands)
 
 
 class TestSetupCloneResume:
@@ -221,20 +225,19 @@ class TestSetupCloneResume:
                 return (0, f"abc123\trefs/heads/{branch}\n", "")
             return (0, "", "")
 
-        with patch.object(manager, "_run_git", side_effect=mock_git):
-            with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-                with patch("os.path.isdir", return_value=False):
-                    with patch("shutil.copytree") as mock_copytree:
-                        info = await manager.setup("C123:1234.5678")
+        with (
+            patch.object(manager, "_run_git", side_effect=mock_git),
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=False),
+            patch("shutil.copytree") as mock_copytree,
+        ):
+            info = await manager.setup("C123:1234.5678")
 
         mock_copytree.assert_not_called()
 
         commands = [" ".join(c) for c in git_calls]
         assert any("clone" in c for c in commands)
-        assert any(
-            "checkout" in c and info.branch_name in c
-            for c in commands
-        )
+        assert any("checkout" in c and info.branch_name in c for c in commands)
 
     @pytest.mark.asyncio
     async def test_clone_resume_fetches_default_branch(self, manager):
@@ -252,16 +255,17 @@ class TestSetupCloneResume:
                 return (0, f"abc123\trefs/heads/{branch}\n", "")
             return (0, "", "")
 
-        with patch.object(manager, "_run_git", side_effect=mock_git):
-            with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-                with patch("os.path.isdir", return_value=False):
-                    info = await manager.setup("C123:1234.5678")
+        with (
+            patch.object(manager, "_run_git", side_effect=mock_git),
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=False),
+        ):
+            await manager.setup("C123:1234.5678")
 
         commands = [" ".join(c) for c in git_calls]
-        assert any(
-            "fetch" in c and f"origin/{manager._default_branch}" in c
-            for c in commands
-        ), "Should fetch the default branch tracking ref"
+        assert any("fetch" in c and f"origin/{manager._default_branch}" in c for c in commands), (
+            "Should fetch the default branch tracking ref"
+        )
 
 
 class TestSetupSync:
@@ -271,13 +275,16 @@ class TestSetupSync:
     async def test_sync_when_dir_exists(self, manager):
         """When the workspace directory already exists, sync is used
         instead of create."""
+
         async def mock_git_checked(*args):
             if "status" in args:
                 return (0, "", "")  # clean
             return (0, "", "")
 
-        with patch.object(manager, "_run_git_checked", side_effect=mock_git_checked):
-            with patch("os.path.isdir", return_value=True):
-                info = await manager.setup("C123:1234.5678")
+        with (
+            patch.object(manager, "_run_git_checked", side_effect=mock_git_checked),
+            patch("os.path.isdir", return_value=True),
+        ):
+            info = await manager.setup("C123:1234.5678")
 
         assert info.branch_name.startswith("session-")

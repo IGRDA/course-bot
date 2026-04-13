@@ -1,15 +1,16 @@
 import os
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+from LLMs.api_keys import get_random_key, parse_api_keys
 from pydantic import PrivateAttr, SecretStr
 from tenacity import retry, stop_after_attempt, wait_exponential
-
-from LLMs.api_keys import get_random_key, mask_key, parse_api_keys
 
 
 def _log_retry(retry_state):
     """Log retry attempts to console."""
-    print(f"[Gemini] Retrying call (attempt {retry_state.attempt_number}) after error: {retry_state.outcome.exception()}")
+    print(
+        f"[Gemini] Retrying call (attempt {retry_state.attempt_number}) after error: {retry_state.outcome.exception()}"
+    )
 
 
 class ChatGemini(ChatGoogleGenerativeAI):
@@ -27,11 +28,12 @@ class ChatGemini(ChatGoogleGenerativeAI):
             stop=stop_after_attempt(10),
             wait=wait_exponential(multiplier=20, min=20, max=500),
             reraise=True,
-            before_sleep=_log_retry
+            before_sleep=_log_retry,
         )
         def _call():
             self._rotate_api_key()
             return super(ChatGemini, self)._generate(*args, **kwargs)
+
         return _call()
 
     async def _agenerate(self, *args, **kwargs):
@@ -39,11 +41,12 @@ class ChatGemini(ChatGoogleGenerativeAI):
             stop=stop_after_attempt(10),
             wait=wait_exponential(multiplier=20, min=20, max=500),
             reraise=True,
-            before_sleep=_log_retry
+            before_sleep=_log_retry,
         )
         async def _acall():
             self._rotate_api_key()
             return await super(ChatGemini, self)._agenerate(*args, **kwargs)
+
         return await _acall()
 
 

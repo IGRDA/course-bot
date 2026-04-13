@@ -1,8 +1,5 @@
 """Unit tests for workflows/config/base.py (CourseConfig)."""
 
-import pytest
-from pydantic import ValidationError
-
 from workflows.config import CourseConfig
 
 
@@ -95,6 +92,7 @@ class TestFlatWithExistingNestedObject:
 
     def test_flat_key_merges_into_existing_object(self):
         from workflows.config.research import ResearchConfig
+
         # Pass a ResearchConfig object AND a flat key that maps to research
         # This triggers the `else` branch (existing is not a dict)
         config = CourseConfig(research=ResearchConfig(max_queries=3), enable_research=False)
@@ -103,6 +101,7 @@ class TestFlatWithExistingNestedObject:
 
     def test_theory_only_with_existing_research_object(self):
         from workflows.config.research import ResearchConfig
+
         # theory_only=True when research is already a ResearchConfig object
         config = CourseConfig(theory_only=True, research=ResearchConfig(enabled=True))
         assert config.research.enabled is False

@@ -1,6 +1,5 @@
 """Google Books API client for book search."""
 
-from .client import search_books, search_book_by_title, GoogleBookResult
+from .client import GoogleBookResult, search_book_by_title, search_books
 
-__all__ = ["search_books", "search_book_by_title", "GoogleBookResult"]
-
+__all__ = ["GoogleBookResult", "search_book_by_title", "search_books"]

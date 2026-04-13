@@ -7,15 +7,13 @@ Provides functionality to synthesize multi-speaker podcast audio from conversati
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from ..base_engine import BaseTTSEngine
 from ..models import (
+    LANGUAGE_CONFIGS,
     Conversation,
     Message,
-    LanguageConfig,
     get_language_config,
-    LANGUAGE_CONFIGS,
 )
 
 
@@ -27,7 +25,7 @@ def _patch_torch_load_for_tts():
     This patches the TTS io module to pass the correct argument.
     """
     try:
-        import torch
+        import torch  # noqa: F401  # ensures torch is available before patching TTS
         import TTS.utils.io as tts_io
 
         # Store original function
@@ -53,7 +51,7 @@ class CoquiTTSEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "en",
-        speaker_map: Optional[dict[str, str | int]] = None,
+        speaker_map: dict[str, str | int] | None = None,
         device: str = "cpu",
     ):
         """Initialize the TTS engine.
@@ -83,6 +81,7 @@ class CoquiTTSEngine(BaseTTSEngine):
                 _patch_torch_load_for_tts()
 
             from TTS.api import TTS
+
             print(f"Loading TTS model: {self.config.model_name}")
             self._tts = TTS(model_name=self.config.model_name).to(self.device)
         return self._tts
@@ -110,7 +109,7 @@ class CoquiTTSEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to audio.
 
@@ -148,9 +147,9 @@ class CoquiTTSEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -234,18 +233,18 @@ def generate_podcast(
     conversation: list[dict],
     output_path: str,
     language: str = "en",
-    speaker_map: Optional[dict[str, str | int]] = None,
-    language_code: Optional[str] = None,
+    speaker_map: dict[str, str | int] | None = None,
+    language_code: str | None = None,
     silence_duration_ms: int = 500,
     device: str = "cpu",
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,
@@ -280,7 +279,7 @@ def generate_podcast(
     Returns:
         Path to the generated audio file
     """
-    from ..audio_utils import add_metadata, add_background_music
+    from ..audio_utils import add_background_music, add_metadata
     from ..models import Conversation as ConvModel
 
     # Convert dict list to Conversation object

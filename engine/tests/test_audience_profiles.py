@@ -1,8 +1,6 @@
 """Unit tests for workflows/audience_profiles.py"""
 
-import pytest
-
-from workflows.audience_profiles import build_audience_guidelines, AUDIENCE_PROFILES
+from workflows.audience_profiles import AUDIENCE_PROFILES, build_audience_guidelines
 
 
 class TestBuildAudienceGuidelines:

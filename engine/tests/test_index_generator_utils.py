@@ -2,7 +2,7 @@
 
 import pytest
 
-from agents.index_generator.utils import get_module_count, compute_layout
+from agents.index_generator.utils import compute_layout, get_module_count
 
 
 class TestGetModuleCount:
@@ -35,7 +35,7 @@ class TestGetModuleCount:
 
     def test_maximum_is_12(self):
         # Extremely large input should clamp to 12
-        result = get_module_count(10 ** 10)
+        result = get_module_count(10**10)
         assert result == 12
 
     def test_returns_int(self):

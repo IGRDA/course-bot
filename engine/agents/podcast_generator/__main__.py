@@ -34,31 +34,36 @@ Examples:
         help="Path to the course.json file",
     )
     parser.add_argument(
-        "--module", "-m",
+        "--module",
+        "-m",
         type=int,
         required=True,
         help="Module index (1-based, e.g., --module 1 for first module)",
     )
     parser.add_argument(
-        "--provider", "-p",
+        "--provider",
+        "-p",
         type=str,
         default=None,
         help="LLM provider override (openai, deepseek, gemini, etc.)",
     )
     parser.add_argument(
-        "--output-dir", "-o",
+        "--output-dir",
+        "-o",
         type=str,
         default=None,
         help="Custom output directory (default: podcast/ in course folder)",
     )
     parser.add_argument(
-        "--target-words", "-w",
+        "--target-words",
+        "-w",
         type=int,
         default=600,
         help="Target word count for conversation (default: 600)",
     )
     parser.add_argument(
-        "--tts-engine", "-t",
+        "--tts-engine",
+        "-t",
         type=str,
         choices=["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"],
         default="qwen_tts_api",
@@ -88,25 +93,26 @@ Examples:
         default=None,
         help='JSON string mapping roles to speakers/paths, e.g. \'{"host": "Ryan", "guest": "Aiden"}\'',
     )
-    
+
     args = parser.parse_args()
-    
+
     # Validate course path
     course_path = Path(args.course_path)
     if not course_path.exists():
         print(f"❌ Error: Course file not found: {course_path}", file=sys.stderr)
         return 1
-    
+
     # Convert 1-based to 0-based index
     module_idx = args.module - 1
     if module_idx < 0:
-        print(f"❌ Error: Module index must be >= 1", file=sys.stderr)
+        print("❌ Error: Module index must be >= 1", file=sys.stderr)
         return 1
-    
+
     # Build speaker_map from CLI arg
     speaker_map = None
     if args.speaker_map:
         import json
+
         speaker_map = json.loads(args.speaker_map)
 
     # Build engine-specific kwargs
@@ -128,7 +134,7 @@ Examples:
             speaker_map=speaker_map,
             tts_kwargs=tts_kwargs or None,
         )
-        
+
         # Print summary
         print("\n" + "=" * 50)
         print("📻 Podcast Generation Complete!")
@@ -137,19 +143,19 @@ Examples:
         print(f"   Module: {result['module_title']}")
         print(f"   Language: {result['language']}")
         print(f"   Conversation: {result['conversation_path']}")
-        if 'audio_path' in result:
+        if "audio_path" in result:
             print(f"   Audio: {result['audio_path']}")
         print(f"   Messages: {len(result['conversation'])}")
-        
+
         return 0
-        
+
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

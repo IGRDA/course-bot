@@ -10,6 +10,7 @@ is dispatched to Cloud Run Job executions.  The worker entry point calls
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import os
@@ -19,7 +20,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from bot.conversation.types import WorkspaceInfo
@@ -117,11 +118,7 @@ class SlackService:
             downloaded_files=downloaded_files,
         )
 
-        agent_cwd = (
-            os.path.join(workspace_info.workspace_dir, "engine")
-            if workspace_info is not None
-            else None
-        )
+        agent_cwd = os.path.join(workspace_info.workspace_dir, "engine") if workspace_info is not None else None
 
         if self._claude is None:
             raise RuntimeError("ClaudeClient is required for _process_and_respond")
@@ -165,10 +162,8 @@ class SlackService:
         pids: set[int] = set()
         for line in result.stdout.strip().splitlines():
             line = line.strip()
-            try:
-                pids.add(int(line))
-            except ValueError:
-                pass  # skip header row ("PID")
+            with contextlib.suppress(ValueError):
+                pids.add(int(line))  # skip non-integer lines like "PID" header
         return pids
 
     async def _wait_for_subprocesses(
@@ -203,8 +198,7 @@ class SlackService:
                 await asyncio.sleep(poll_interval)
             except (asyncio.CancelledError, Exception) as exc:
                 logger.warning(
-                    "Subprocess wait interrupted (%s: %s), "
-                    "proceeding with %d subprocess(es) still running",
+                    "Subprocess wait interrupted (%s: %s), proceeding with %d subprocess(es) still running",
                     type(exc).__name__,
                     exc,
                     len(spawned),
@@ -297,10 +291,8 @@ class SlackService:
             return zip_path
         except Exception:
             logger.exception("Failed to create zip from output directory")
-            try:
+            with contextlib.suppress(OSError):
                 os.remove(zip_path)
-            except OSError:
-                pass
         return None
 
     async def _download_event_files(
@@ -363,7 +355,7 @@ class SlackService:
 
         prompt = self._build_prompt_from_messages(messages)
 
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         context_info = (
             f"Context: You were mentioned in a Slack thread.\n"
             f"Current datetime: {now.strftime('%A, %B %d, %Y at %I:%M %p')} UTC\n\n"

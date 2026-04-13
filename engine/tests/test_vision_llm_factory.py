@@ -1,7 +1,6 @@
 """Unit tests for LLMs/imagetext2text/factory.py"""
 
 import pytest
-
 from LLMs.imagetext2text.factory import available_vision_llms, create_vision_llm, resolve_vision_model_name
 
 

@@ -3,12 +3,11 @@
 import pytest
 
 from tools.podcast.models import (
-    Message,
-    Conversation,
-    LanguageConfig,
-    get_language_config,
     LANGUAGE_CONFIGS,
     XTTS_SPEAKERS,
+    Conversation,
+    Message,
+    get_language_config,
 )
 
 
@@ -37,11 +36,13 @@ class TestMessage:
 
 class TestConversation:
     def _make_conversation(self):
-        return Conversation.from_dicts([
-            {"role": "host", "content": "Welcome!"},
-            {"role": "guest", "content": "Thanks for having me."},
-            {"role": "host", "content": "Let's dive in."},
-        ])
+        return Conversation.from_dicts(
+            [
+                {"role": "host", "content": "Welcome!"},
+                {"role": "guest", "content": "Thanks for having me."},
+                {"role": "host", "content": "Let's dive in."},
+            ]
+        )
 
     def test_from_dicts(self):
         conv = self._make_conversation()
@@ -79,10 +80,12 @@ class TestConversation:
         assert conv.get_roles() == set()
 
     def test_single_role(self):
-        conv = Conversation.from_dicts([
-            {"role": "narrator", "content": "Chapter one."},
-            {"role": "narrator", "content": "Chapter two."},
-        ])
+        conv = Conversation.from_dicts(
+            [
+                {"role": "narrator", "content": "Chapter one."},
+                {"role": "narrator", "content": "Chapter two."},
+            ]
+        )
         assert conv.get_roles() == {"narrator"}
 
 

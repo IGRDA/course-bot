@@ -10,22 +10,23 @@ loaded when the caller actually uses a specific engine or utility.
 """
 
 # Lightweight imports that have no heavy deps
+from .base_engine import BaseTTSEngine
+from .factory import EngineType, create_tts_engine, get_engine_info, list_engines
 from .models import (
-    Message,
+    LANGUAGE_CONFIGS,
     Conversation,
     LanguageConfig,
-    LANGUAGE_CONFIGS,
+    Message,
     get_language_config,
 )
-from .base_engine import BaseTTSEngine
-from .factory import create_tts_engine, get_engine_info, list_engines, EngineType
 
 
 def __getattr__(name: str):
     """Lazy module-level attribute access for heavy engine exports."""
     # Edge TTS exports
     if name in ("EdgeTTSEngine", "EDGE_VOICE_MAP", "EDGE_VOICES", "generate_podcast_edge"):
-        from .edge.client import EdgeTTSEngine, EDGE_VOICE_MAP, EDGE_VOICES, generate_podcast_edge
+        from .edge.client import EDGE_VOICE_MAP, EDGE_VOICES, EdgeTTSEngine, generate_podcast_edge
+
         _map = {
             "EdgeTTSEngine": EdgeTTSEngine,
             "EDGE_VOICE_MAP": EDGE_VOICE_MAP,
@@ -43,6 +44,7 @@ def __getattr__(name: str):
             list_available_languages,
             list_speakers,
         )
+
         _map = {
             "TTSEngine": TTSEngine,
             "CoquiTTSEngine": CoquiTTSEngine,
@@ -55,6 +57,7 @@ def __getattr__(name: str):
     # Chatterbox TTS exports
     if name in ("ChatterboxEngine", "generate_podcast_chatterbox"):
         from .chatterbox.client import ChatterboxEngine, generate_podcast_chatterbox
+
         _map = {
             "ChatterboxEngine": ChatterboxEngine,
             "generate_podcast_chatterbox": generate_podcast_chatterbox,
@@ -64,6 +67,7 @@ def __getattr__(name: str):
     # ElevenLabs TTS exports
     if name in ("ElevenLabsTTSEngine", "generate_podcast_elevenlabs", "ELEVENLABS_VOICE_MAP"):
         from .elevenlabs.client import ELEVENLABS_VOICE_MAP, ElevenLabsTTSEngine, generate_podcast_elevenlabs
+
         _map = {
             "ElevenLabsTTSEngine": ElevenLabsTTSEngine,
             "generate_podcast_elevenlabs": generate_podcast_elevenlabs,
@@ -74,6 +78,7 @@ def __getattr__(name: str):
     # OpenAI TTS exports
     if name in ("OpenAITTSEngine", "generate_podcast_openai_tts", "OPENAI_TTS_VOICE_MAP"):
         from .openai_tts.client import OPENAI_TTS_VOICE_MAP, OpenAITTSEngine, generate_podcast_openai_tts
+
         _map = {
             "OpenAITTSEngine": OpenAITTSEngine,
             "generate_podcast_openai_tts": generate_podcast_openai_tts,
@@ -84,6 +89,7 @@ def __getattr__(name: str):
     # Qwen TTS exports
     if name in ("QwenTTSEngine", "generate_podcast_qwen_tts"):
         from .qwen_tts.client import QwenTTSEngine, generate_podcast_qwen_tts
+
         _map = {
             "QwenTTSEngine": QwenTTSEngine,
             "generate_podcast_qwen_tts": generate_podcast_qwen_tts,
@@ -93,6 +99,7 @@ def __getattr__(name: str):
     # Qwen TTS API exports
     if name in ("QwenTTSApiEngine", "generate_podcast_qwen_tts_api", "QWEN_TTS_API_VOICE_MAP"):
         from .qwen_tts_api.client import QWEN_TTS_API_VOICE_MAP, QwenTTSApiEngine, generate_podcast_qwen_tts_api
+
         _map = {
             "QwenTTSApiEngine": QwenTTSApiEngine,
             "generate_podcast_qwen_tts_api": generate_podcast_qwen_tts_api,
@@ -103,6 +110,7 @@ def __getattr__(name: str):
     # MLX TTS exports
     if name in ("MLXTTSEngine", "generate_podcast_mlx_tts"):
         from .mlx_tts.client import MLXTTSEngine, generate_podcast_mlx_tts
+
         _map = {
             "MLXTTSEngine": MLXTTSEngine,
             "generate_podcast_mlx_tts": generate_podcast_mlx_tts,
@@ -111,7 +119,8 @@ def __getattr__(name: str):
 
     # Audio utility exports
     if name in ("add_metadata", "add_background_music", "get_default_music_path"):
-        from .audio_utils import add_metadata, add_background_music, get_default_music_path
+        from .audio_utils import add_background_music, add_metadata, get_default_music_path
+
         _map = {
             "add_metadata": add_metadata,
             "add_background_music": add_background_music,
@@ -123,53 +132,53 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    # Models
-    "Message",
-    "Conversation",
-    "LanguageConfig",
+    "EDGE_VOICES",
+    "EDGE_VOICE_MAP",
+    "ELEVENLABS_VOICE_MAP",
     "LANGUAGE_CONFIGS",
-    "get_language_config",
+    "OPENAI_TTS_VOICE_MAP",
+    "QWEN_TTS_API_VOICE_MAP",
     # Base Engine
     "BaseTTSEngine",
-    # Edge TTS Engine
-    "EdgeTTSEngine",
-    "EDGE_VOICE_MAP",
-    "EDGE_VOICES",
-    "generate_podcast_edge",
-    # Coqui TTS Engine
-    "TTSEngine",
-    "CoquiTTSEngine",
-    "generate_podcast",
-    "list_available_languages",
-    "list_speakers",
     # Chatterbox TTS Engine
     "ChatterboxEngine",
-    "generate_podcast_chatterbox",
+    "Conversation",
+    "CoquiTTSEngine",
+    # Edge TTS Engine
+    "EdgeTTSEngine",
     # ElevenLabs TTS Engine
     "ElevenLabsTTSEngine",
-    "generate_podcast_elevenlabs",
-    "ELEVENLABS_VOICE_MAP",
-    # OpenAI TTS Engine
-    "OpenAITTSEngine",
-    "generate_podcast_openai_tts",
-    "OPENAI_TTS_VOICE_MAP",
-    # Qwen TTS Engine
-    "QwenTTSEngine",
-    "generate_podcast_qwen_tts",
-    # Qwen TTS API Engine
-    "QwenTTSApiEngine",
-    "generate_podcast_qwen_tts_api",
-    "QWEN_TTS_API_VOICE_MAP",
+    "EngineType",
+    "LanguageConfig",
     # MLX TTS Engine
     "MLXTTSEngine",
-    "generate_podcast_mlx_tts",
-    # Factory
-    "create_tts_engine",
-    "get_engine_info",
-    "list_engines",
-    "EngineType",
+    # Models
+    "Message",
+    # OpenAI TTS Engine
+    "OpenAITTSEngine",
+    # Qwen TTS API Engine
+    "QwenTTSApiEngine",
+    # Qwen TTS Engine
+    "QwenTTSEngine",
+    # Coqui TTS Engine
+    "TTSEngine",
+    "add_background_music",
     # Audio Utilities
     "add_metadata",
-    "add_background_music",
+    # Factory
+    "create_tts_engine",
+    "generate_podcast",
+    "generate_podcast_chatterbox",
+    "generate_podcast_edge",
+    "generate_podcast_elevenlabs",
+    "generate_podcast_mlx_tts",
+    "generate_podcast_openai_tts",
+    "generate_podcast_qwen_tts",
+    "generate_podcast_qwen_tts_api",
     "get_default_music_path",
+    "get_engine_info",
+    "get_language_config",
+    "list_available_languages",
+    "list_engines",
+    "list_speakers",
 ]

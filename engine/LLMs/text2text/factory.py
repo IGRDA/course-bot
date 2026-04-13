@@ -9,7 +9,6 @@ langchain_google_genai, etc.) are only loaded when actually requested.
 """
 
 import os
-from typing import Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -34,18 +33,23 @@ def _get_builder(provider: str):
     """Lazily import and return the builder function for *provider*."""
     if provider == "deepseek":
         from .deepseek.client import build_deepseek_chat_model
+
         return build_deepseek_chat_model
     elif provider == "gemini":
         from .gemini.client import build_gemini_chat_model
+
         return build_gemini_chat_model
     elif provider == "groq":
         from .groq.client import build_groq_chat_model
+
         return build_groq_chat_model
     elif provider == "mistral":
         from .mistral.client import build_mistral_chat_model
+
         return build_mistral_chat_model
     elif provider == "openai":
         from .openai.client import build_openai_chat_model
+
         return build_openai_chat_model
     else:
         return None
@@ -61,39 +65,34 @@ def create_text_llm(provider: str, **kwargs) -> BaseChatModel:
 
     Returns:
         A ``BaseChatModel`` ready for use in LangChain pipelines.
-        
+
     Raises:
         ValueError: If provider is empty or not supported.
     """
     if not provider:
-        raise ValueError(
-            "Provider is required. Must be one of: deepseek, mistral, gemini, groq, openai"
-        )
+        raise ValueError("Provider is required. Must be one of: deepseek, mistral, gemini, groq, openai")
 
     key = provider.lower()
     builder = _get_builder(key)
     if builder is None:
         available = ", ".join(available_text_llms())
-        raise ValueError(
-            f"Unsupported text LLM provider '{provider}'. "
-            f"Available providers: {available}"
-        )
+        raise ValueError(f"Unsupported text LLM provider '{provider}'. Available providers: {available}")
 
     return builder(**kwargs)
 
 
-def resolve_text_model_name(provider: str) -> Optional[str]:
+def resolve_text_model_name(provider: str) -> str | None:
     """
     Return the provider-specific model name from environment variable.
-    
+
     Args:
         provider: LLM provider name (mistral | gemini | groq | openai | deepseek).
-    
+
     Returns:
         Model name from environment variable, or None if not set.
     """
     if not provider:
         return None
-    
+
     env_var = MODEL_ENV_VARS.get(provider.lower())
     return os.getenv(env_var) if env_var else None

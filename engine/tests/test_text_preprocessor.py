@@ -1,14 +1,11 @@
 """Unit tests for tools/podcast/text_preprocessor.py"""
 
-import pytest
-
 from tools.podcast.text_preprocessor import (
-    split_long_sentences,
+    clean_punctuation,
     expand_acronyms,
     normalize_numbers,
-    clean_punctuation,
     preprocess_for_tts,
-    ACRONYM_EXPANSIONS,
+    split_long_sentences,
 )
 
 
@@ -166,6 +163,7 @@ class TestPreprocessForTts:
 
 # ---- Additional coverage for _split_at_natural_break branches ----
 
+
 class TestSplitAtNaturalBreak:
     """Tests specifically targeting the _split_at_natural_break internal logic."""
 
@@ -190,43 +188,51 @@ class TestSplitAtNaturalBreak:
 
 class TestNumberToWords:
     """Test the _number_to_words helper for composite numbers."""
+
     from tools.podcast.text_preprocessor import _number_to_words
 
     def test_large_number_returns_string(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(999, "en")
         assert isinstance(result, str)
 
     def test_twenty_one_en(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(21, "en")
         assert "twenty" in result
         assert "one" in result
 
     def test_twenty_one_es(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(21, "es")
         assert "veinti" in result
 
     def test_thirty_five_en(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(35, "en")
         assert "thirty" in result
         assert "five" in result
 
     def test_thirty_five_es(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(35, "es")
         assert "treinta" in result
         assert "cinco" in result
 
     def test_exact_ten_en(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(10, "en")
         assert result == "ten"
 
     def test_40_en(self):
         from tools.podcast.text_preprocessor import _number_to_words
+
         result = _number_to_words(40, "en")
         assert result == "forty"
 
@@ -252,8 +258,8 @@ class TestNormalizeNumbersAdvanced:
         # Build a sentence: 11 words before comma, 6 words after, total 17 words
         # max_words=15 triggers split; 10 words before comma + comma satisfies word_count>=10
         # words_remaining=6 satisfies >=5
-        pre = " ".join([f"word{i}" for i in range(11)])   # 11 words
-        post = " ".join([f"word{i}" for i in range(6)])    # 6 words
+        pre = " ".join([f"word{i}" for i in range(11)])  # 11 words
+        post = " ".join([f"word{i}" for i in range(6)])  # 6 words
         long_sent = f"{pre}, {post}."
         result = split_long_sentences(long_sent, max_words=15)
         # Should have introduced a period at the comma

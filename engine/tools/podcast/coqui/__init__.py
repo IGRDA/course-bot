@@ -13,6 +13,7 @@ def __getattr__(name: str):
             list_available_languages,
             list_speakers,
         )
+
         _map = {
             "CoquiTTSEngine": CoquiTTSEngine,
             "TTSEngine": TTSEngine,

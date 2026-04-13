@@ -3,32 +3,30 @@
 import pytest
 from pydantic import ValidationError
 
+from workflows.config import CourseConfig
 from workflows.state import (
+    Activity,
     BookReference,
     CourseBibliography,
-    ModuleBibliography,
-    HtmlElement,
-    ParagraphBlock,
-    Section,
-    Submodule,
-    Module,
     CourseState,
     GlossaryTerm,
+    HtmlElement,
     MetaElements,
-    Activity,
-    ActivitiesSection,
     MindmapNode,
     MindmapNodeData,
     MindmapRelation,
     MindmapRelationData,
+    Module,
     ModuleMindmap,
+    ParagraphBlock,
     PersonReference,
+    Section,
+    Submodule,
     VideoReference,
 )
-from workflows.config import CourseConfig
-
 
 # ---- Helpers ----
+
 
 def make_course_config(**kwargs):
     return CourseConfig(title="Test Course", **kwargs)
@@ -53,6 +51,7 @@ def make_module(**kwargs):
 
 
 # ---- BookReference ----
+
 
 class TestBookReference:
     def test_isbn13_dedup_key(self):
@@ -96,6 +95,7 @@ class TestCourseBibliography:
 
 
 # ---- HtmlElement validation ----
+
 
 class TestHtmlElement:
     def test_paragraph_valid(self):
@@ -143,7 +143,9 @@ class TestHtmlElement:
     def test_all_interactive_types_accept_list(self):
         interactive_types = ["paragraphs", "accordion", "tabs", "carousel", "flip", "timeline", "conversation"]
         block = ParagraphBlock(
-            title="T", icon="i", image=None,
+            title="T",
+            icon="i",
+            image=None,
             elements=[HtmlElement(type="p", content="x")],
         )
         for t in interactive_types:
@@ -152,6 +154,7 @@ class TestHtmlElement:
 
 
 # ---- Section / Submodule / Module ----
+
 
 class TestSection:
     def test_defaults(self):
@@ -231,6 +234,7 @@ class TestHtmlElementInvalidBlock:
 
 # ---- MetaElements / Activity ----
 
+
 class TestMetaElements:
     def test_defaults(self):
         meta = MetaElements()
@@ -247,6 +251,7 @@ class TestMetaElements:
 class TestActivity:
     def test_multiple_choice_activity(self):
         from workflows.state import MultipleChoiceContent
+
         content = MultipleChoiceContent(
             question="What is 2+2?",
             solution="4",
@@ -257,6 +262,7 @@ class TestActivity:
 
     def test_fill_gaps_activity(self):
         from workflows.state import FillGapsContent
+
         content = FillGapsContent(
             question="Python is a *gap* language",
             solution=["programming", "scripting"],
@@ -267,6 +273,7 @@ class TestActivity:
 
 # ---- MindMap Models ----
 
+
 class TestMindmapModels:
     def test_node_creation(self):
         node = MindmapNode(id="n1", level=1, data=MindmapNodeData(label="Concept"))
@@ -275,7 +282,9 @@ class TestMindmapModels:
 
     def test_relation_creation(self):
         rel = MindmapRelation(
-            id="r1", source="n1", target="n2",
+            id="r1",
+            source="n1",
+            target="n2",
             data=MindmapRelationData(label="relates to"),
         )
         assert rel.source == "n1"
@@ -289,6 +298,7 @@ class TestMindmapModels:
 
 # ---- PersonReference ----
 
+
 class TestPersonReference:
     def test_creation(self):
         p = PersonReference(
@@ -301,6 +311,7 @@ class TestPersonReference:
 
 
 # ---- VideoReference ----
+
 
 class TestVideoReference:
     def test_creation(self):

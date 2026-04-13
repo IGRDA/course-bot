@@ -26,6 +26,7 @@ def _get_builder(provider: str):
     """Lazily import and return the builder function for *provider*."""
     if provider == "pixtral":
         from .pixtral.client import build_pixtral_chat_model
+
         return build_pixtral_chat_model
     else:
         return None
@@ -43,18 +44,13 @@ def create_vision_llm(provider: str, **kwargs) -> BaseChatModel:
         A ``BaseChatModel`` ready for use in LangChain pipelines with vision support.
     """
     if not provider:
-        raise ValueError(
-            "Provider is required. Must be one of: pixtral"
-        )
+        raise ValueError("Provider is required. Must be one of: pixtral")
 
     key = provider.lower()
     builder = _get_builder(key)
     if builder is None:
         available = ", ".join(available_vision_llms())
-        raise ValueError(
-            f"Unsupported vision LLM provider '{provider}'. "
-            f"Available providers: {available}"
-        )
+        raise ValueError(f"Unsupported vision LLM provider '{provider}'. Available providers: {available}")
 
     return builder(**kwargs)
 
@@ -62,16 +58,15 @@ def create_vision_llm(provider: str, **kwargs) -> BaseChatModel:
 def resolve_vision_model_name(provider: str) -> str | None:
     """
     Return the provider-specific model name from environment variable.
-    
+
     Args:
         provider: Vision LLM provider name (pixtral).
-    
+
     Returns:
         Model name from environment variable, or None if not set.
     """
     if not provider:
         return None
-    
+
     env_var = MODEL_ENV_VARS.get(provider.lower())
     return os.getenv(env_var) if env_var else None
-

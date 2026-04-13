@@ -1,10 +1,10 @@
 """Unit tests for tools/podcast/factory.py"""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
 
-from tools.podcast.factory import get_engine_info, list_engines, create_tts_engine
-
+from tools.podcast.factory import create_tts_engine, get_engine_info, list_engines
 
 KNOWN_ENGINES = ["edge", "coqui", "chatterbox", "elevenlabs", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"]
 
@@ -76,7 +76,6 @@ class TestCreateTtsEngine:
         mock_engine = MagicMock()
         # Patch the factory function itself to short-circuit the lazy import
         import tools.podcast.factory as factory_module
-        original = factory_module.create_tts_engine
 
         def fake_factory(engine=engine_name, language="en", speaker_map=None, **kw):
             return mock_engine
@@ -91,5 +90,6 @@ class TestCreateTtsEngine:
             mock_engine = MagicMock()
             with patch("tools.podcast.factory.create_tts_engine", return_value=mock_engine):
                 import tools.podcast.factory as f
+
                 result = f.create_tts_engine(engine_name)
             assert result is mock_engine

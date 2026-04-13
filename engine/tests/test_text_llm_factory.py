@@ -1,9 +1,8 @@
 """Unit tests for LLMs/text2text/factory.py"""
 
-import os
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
+import pytest
 from LLMs.text2text.factory import available_text_llms, create_text_llm, resolve_text_model_name
 
 

@@ -7,6 +7,7 @@ Imports are lazy so that pydub/edge-tts are only loaded when used.
 def __getattr__(name: str):
     if name in ("EDGE_VOICE_MAP", "EDGE_VOICES", "EdgeTTSEngine", "generate_podcast_edge"):
         from .client import EDGE_VOICE_MAP, EDGE_VOICES, EdgeTTSEngine, generate_podcast_edge
+
         _map = {
             "EDGE_VOICE_MAP": EDGE_VOICE_MAP,
             "EDGE_VOICES": EDGE_VOICES,
@@ -18,8 +19,8 @@ def __getattr__(name: str):
 
 
 __all__ = [
-    "EDGE_VOICE_MAP",
     "EDGE_VOICES",
+    "EDGE_VOICE_MAP",
     "EdgeTTSEngine",
     "generate_podcast_edge",
 ]

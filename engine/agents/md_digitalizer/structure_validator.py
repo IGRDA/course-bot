@@ -18,13 +18,12 @@ import logging
 import os
 import re
 import time
-from typing import Optional
 
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-
-from workflows.state import CourseState, Module, Submodule, Section
+from langchain_core.prompts import ChatPromptTemplate
 from LLMs.text2text import create_text_llm, resolve_text_model_name
+
+from workflows.state import CourseState, Module, Section, Submodule
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +40,7 @@ _CHUNK_TARGET_WORDS = 1500
 # ---------------------------------------------------------------------------
 # Anomaly detection
 # ---------------------------------------------------------------------------
+
 
 def _is_anomalous(modules: list[Module]) -> bool:
     """Return True when the parsed structure needs LLM-assisted restructuring."""
@@ -60,17 +60,12 @@ def _is_anomalous(modules: list[Module]) -> bool:
                 return True
 
     if len(modules) == 1:
-        total_words = sum(
-            len(sec.theory.split())
-            for m in modules for sm in m.submodules for sec in sm.sections
-        )
+        total_words = sum(len(sec.theory.split()) for m in modules for sm in m.submodules for sec in sm.sections)
         if total_words > _OVERSIZED_MODULE_WORDS:
             return True
 
     if len(modules) == 1:
-        total_sections = sum(
-            len(sm.sections) for m in modules for sm in m.submodules
-        )
+        total_sections = sum(len(sm.sections) for m in modules for sm in m.submodules)
         if total_sections > 30:
             return True
 
@@ -81,12 +76,13 @@ def _is_anomalous(modules: list[Module]) -> bool:
 # Smart paragraph chunking
 # ---------------------------------------------------------------------------
 
+
 def _chunk_by_paragraphs(text: str, target_words: int = _CHUNK_TARGET_WORDS) -> list[str]:
     """Split text into chunks of ~target_words at paragraph boundaries.
 
     Lossless: ``"".join(result) == text`` always holds.
     """
-    breaks = [m.end() for m in re.finditer(r'\n[ \t]*\n', text)]
+    breaks = [m.end() for m in re.finditer(r"\n[ \t]*\n", text)]
 
     if not breaks:
         return [text] if text.strip() else []
@@ -123,18 +119,18 @@ def _chunk_by_paragraphs(text: str, target_words: int = _CHUNK_TARGET_WORDS) -> 
 # ---------------------------------------------------------------------------
 
 _HEADING_HINT_RE = re.compile(
-    r'^(?:'
-    r'[A-ZÁÉÍÓÚÑ\s]{8,}'           # ALL CAPS lines (8+ chars)
-    r'|(?:Artículo|Art\.?|ITC|CAPÍTULO|Capítulo|Chapter|Módulo|Tema|TEMA|Sección|Section)\s*\S+'
-    r'|\d+(?:\.\d+)*\s*[.\-–—]\s*.+'  # Numbered sections like "1.1.- Algo"
-    r')$',
+    r"^(?:"
+    r"[A-ZÁÉÍÓÚÑ\s]{8,}"  # ALL CAPS lines (8+ chars)
+    r"|(?:Artículo|Art\.?|ITC|CAPÍTULO|Capítulo|Chapter|Módulo|Tema|TEMA|Sección|Section)\s*\S+"
+    r"|\d+(?:\.\d+)*\s*[.\-–—]\s*.+"  # Numbered sections like "1.1.- Algo"
+    r")$",
     re.MULTILINE,
 )
 
 
 def _extract_fingerprint(chunk: str) -> dict:
     """Extract compact structural signals from a text chunk."""
-    lines = chunk.strip().split('\n')
+    lines = chunk.strip().split("\n")
     first_line = lines[0][:150] if lines else ""
 
     hints = _HEADING_HINT_RE.findall(chunk)
@@ -150,6 +146,7 @@ def _extract_fingerprint(chunk: str) -> dict:
 # ---------------------------------------------------------------------------
 # Content unit expansion
 # ---------------------------------------------------------------------------
+
 
 def _expand_to_content_units(
     modules: list[Module],
@@ -185,9 +182,7 @@ def _expand_to_content_units(
                 units.append(unit)
                 origin_map[global_idx] = {"type": "submodule", "ref": sm}
             else:
-                all_theory = "\n\n".join(
-                    sec.theory for sec in sm.sections if sec.theory
-                )
+                all_theory = "\n\n".join(sec.theory for sec in sm.sections if sec.theory)
                 chunks = _chunk_by_paragraphs(all_theory)
                 for chunk_text in chunks:
                     global_idx += 1
@@ -261,15 +256,18 @@ Return a JSON array:
 Every index from 1 to {total_units} must appear exactly once.  \
 All index ranges must be contiguous."""
 
-_structure_prompt = ChatPromptTemplate.from_messages([
-    ("system", _STRUCTURE_SYSTEM),
-    ("human", _STRUCTURE_USER),
-])
+_structure_prompt = ChatPromptTemplate.from_messages(
+    [
+        ("system", _STRUCTURE_SYSTEM),
+        ("human", _STRUCTURE_USER),
+    ]
+)
 
 
 # ---------------------------------------------------------------------------
 # JSON helpers
 # ---------------------------------------------------------------------------
+
 
 def _strip_markdown_fences(text: str) -> str:
     text = text.strip()
@@ -291,8 +289,8 @@ def _robust_json_loads(text: str) -> list | dict:
         pass
 
     cleaned = re.sub(
-        r'[\x00-\x1f\x7f]',
-        lambda m: ' ' if m.group() in ('\n', '\r', '\t') else '',
+        r"[\x00-\x1f\x7f]",
+        lambda m: " " if m.group() in ("\n", "\r", "\t") else "",
         text,
     )
     try:
@@ -300,18 +298,18 @@ def _robust_json_loads(text: str) -> list | dict:
     except json.JSONDecodeError:
         pass
 
-    cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
+    cleaned = re.sub(r",\s*([}\]])", r"\1", cleaned)
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
 
-    match = re.search(r'\[[\s\S]*\]', cleaned)
+    match = re.search(r"\[[\s\S]*\]", cleaned)
     if match:
         try:
             return json.loads(match.group())
         except json.JSONDecodeError:
-            fixed = re.sub(r',\s*([}\]])', r'\1', match.group())
+            fixed = re.sub(r",\s*([}\]])", r"\1", match.group())
             return json.loads(fixed)
 
     raise json.JSONDecodeError("Could not extract valid JSON array", text, 0)
@@ -320,6 +318,7 @@ def _robust_json_loads(text: str) -> list | dict:
 # ---------------------------------------------------------------------------
 # LLM call with retries / fallbacks
 # ---------------------------------------------------------------------------
+
 
 def _llm_structure_analysis(
     units: list[dict],
@@ -361,14 +360,16 @@ def _llm_structure_analysis(
             t0 = time.time()
             print(f"      [{prov}] structure analysis attempt {attempt + 1}/{max_retries} ...")
             try:
-                raw = chain.invoke({
-                    "course_title": course_title,
-                    "total_units": total_units,
-                    "total_words": total_words,
-                    "units_json": units_json,
-                    "min_modules": _TARGET_MIN_MODULES,
-                    "max_modules": _TARGET_MAX_MODULES,
-                })
+                raw = chain.invoke(
+                    {
+                        "course_title": course_title,
+                        "total_units": total_units,
+                        "total_words": total_words,
+                        "units_json": units_json,
+                        "min_modules": _TARGET_MIN_MODULES,
+                        "max_modules": _TARGET_MAX_MODULES,
+                    }
+                )
                 elapsed = time.time() - t0
                 parsed = _robust_json_loads(raw)
                 if not isinstance(parsed, list) or not parsed:
@@ -388,13 +389,21 @@ def _llm_structure_analysis(
                 elapsed = time.time() - t0
                 logger.warning(
                     "Structure analysis attempt %d/%d with %s failed (%.1fs): %s",
-                    attempt + 1, max_retries, prov, elapsed, e,
+                    attempt + 1,
+                    max_retries,
+                    prov,
+                    elapsed,
+                    e,
                 )
             except Exception as e:
                 elapsed = time.time() - t0
                 logger.warning(
                     "Structure analysis attempt %d/%d with %s failed (%.1fs): %s",
-                    attempt + 1, max_retries, prov, elapsed, e,
+                    attempt + 1,
+                    max_retries,
+                    prov,
+                    elapsed,
+                    e,
                 )
 
         if result is not None:
@@ -402,9 +411,7 @@ def _llm_structure_analysis(
         print(f"      All attempts with {prov} failed, trying next provider...")
 
     if result is None:
-        raise RuntimeError(
-            f"All structure-validation attempts failed across providers {providers_to_try}"
-        )
+        raise RuntimeError(f"All structure-validation attempts failed across providers {providers_to_try}")
 
     return result
 
@@ -441,9 +448,7 @@ def _validate_structure_response(modules: list[dict], total_units: int) -> None:
                     f"starts at {min(indices)} but previous ended at {prev_max}"
                 )
             if sorted(indices) != list(range(min(indices), max(indices) + 1)):
-                raise ValueError(
-                    f"Non-contiguous indices in submodule '{sm.get('title')}': {indices}"
-                )
+                raise ValueError(f"Non-contiguous indices in submodule '{sm.get('title')}': {indices}")
             prev_max = max(indices)
 
     if seen != set(range(1, total_units + 1)):
@@ -454,6 +459,7 @@ def _validate_structure_response(modules: list[dict], total_units: int) -> None:
 # ---------------------------------------------------------------------------
 # Apply structure
 # ---------------------------------------------------------------------------
+
 
 def _apply_structure(
     structure: list[dict],
@@ -484,41 +490,47 @@ def _apply_structure(
                         sec_idx += 1
                         sec.index = sec_idx
                         merged_sections.append(sec)
-                new_submodules.append(Submodule(
-                    title=sub_spec.get("title", f"Submodule {sub_idx}"),
-                    index=sub_idx,
-                    description="",
-                    sections=merged_sections,
-                ))
+                new_submodules.append(
+                    Submodule(
+                        title=sub_spec.get("title", f"Submodule {sub_idx}"),
+                        index=sub_idx,
+                        description="",
+                        sections=merged_sections,
+                    )
+                )
             else:
                 chunk_texts = []
                 for o in origins:
                     if o["type"] == "chunk":
                         chunk_texts.append(o["text"])
                     elif o["type"] == "submodule":
-                        chunk_texts.append("\n\n".join(
-                            sec.theory for sec in o["ref"].sections if sec.theory
-                        ))
+                        chunk_texts.append("\n\n".join(sec.theory for sec in o["ref"].sections if sec.theory))
 
                 combined_theory = "".join(chunk_texts)
-                new_submodules.append(Submodule(
-                    title=sub_spec.get("title", f"Submodule {sub_idx}"),
-                    index=sub_idx,
-                    description="",
-                    sections=[Section(
-                        title=sub_spec.get("title", f"Section {sub_idx}"),
-                        index=1,
-                        theory=combined_theory,
-                    )],
-                ))
+                new_submodules.append(
+                    Submodule(
+                        title=sub_spec.get("title", f"Submodule {sub_idx}"),
+                        index=sub_idx,
+                        description="",
+                        sections=[
+                            Section(
+                                title=sub_spec.get("title", f"Section {sub_idx}"),
+                                index=1,
+                                theory=combined_theory,
+                            )
+                        ],
+                    )
+                )
 
-        new_modules.append(Module(
-            title=mod_spec.get("title", f"Module {mod_idx}"),
-            description=mod_spec.get("description", ""),
-            id=str(mod_idx),
-            index=mod_idx,
-            submodules=new_submodules,
-        ))
+        new_modules.append(
+            Module(
+                title=mod_spec.get("title", f"Module {mod_idx}"),
+                description=mod_spec.get("description", ""),
+                id=str(mod_idx),
+                index=mod_idx,
+                submodules=new_submodules,
+            )
+        )
 
     return new_modules
 
@@ -526,6 +538,7 @@ def _apply_structure(
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def validate_and_split(
     state: CourseState,
@@ -548,14 +561,8 @@ def validate_and_split(
 
     total_subs = sum(len(m.submodules) for m in modules)
     total_sections = sum(len(sm.sections) for m in modules for sm in m.submodules)
-    total_words = sum(
-        len(sec.theory.split())
-        for m in modules for sm in m.submodules for sec in sm.sections
-    )
-    total_chars = sum(
-        len(sec.theory)
-        for m in modules for sm in m.submodules for sec in sm.sections
-    )
+    total_words = sum(len(sec.theory.split()) for m in modules for sm in m.submodules for sec in sm.sections)
+    total_chars = sum(len(sec.theory) for m in modules for sm in m.submodules for sec in sm.sections)
 
     print(
         f"   Structure anomaly detected: {len(modules)} module(s), "
@@ -566,7 +573,7 @@ def validate_and_split(
     heading_count = sum(1 for u in units if u["source"] == "heading")
     chunk_count = sum(1 for u in units if u["source"] == "chunk")
     print(f"   Expanded to {len(units)} content units ({heading_count} headings, {chunk_count} chunks)")
-    print(f"   Asking LLM to organise into modules and submodules...")
+    print("   Asking LLM to organise into modules and submodules...")
 
     course_title = state.title or state.config.title or "Untitled"
 
@@ -579,14 +586,13 @@ def validate_and_split(
 
     new_modules = _apply_structure(structure, units, origin_map)
 
-    after_chars = sum(
-        len(sec.theory)
-        for m in new_modules for sm in m.submodules for sec in sm.sections
-    )
+    after_chars = sum(len(sec.theory) for m in new_modules for sm in m.submodules for sec in sm.sections)
     if after_chars != total_chars:
         logger.error(
             "Theory text length mismatch after restructuring: %d -> %d (delta %d chars)",
-            total_chars, after_chars, total_chars - after_chars,
+            total_chars,
+            after_chars,
+            total_chars - after_chars,
         )
 
     state.modules = new_modules

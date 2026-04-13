@@ -11,7 +11,6 @@ import logging
 import os
 import re
 from datetime import datetime
-from typing import List
 
 import requests
 
@@ -24,11 +23,12 @@ _YT_API_BASE = "https://www.googleapis.com/youtube/v3"
 # Public entry point
 # ---------------------------------------------------------------------------
 
+
 def search_videos(
     query: str,
     max_results: int = 5,
     language: str | None = None,
-) -> List[dict]:
+) -> list[dict]:
     """Search for YouTube videos and return metadata dicts.
 
     Tries the YouTube Data API v3 first.  If that fails for *any* reason
@@ -63,12 +63,13 @@ def search_videos(
 # YouTube Data API v3
 # ---------------------------------------------------------------------------
 
+
 def _search_via_api(
     query: str,
     max_results: int,
     api_key: str,
     language: str | None = None,
-) -> List[dict]:
+) -> list[dict]:
     """Search using YouTube Data API v3 (search.list + videos.list)."""
     # Step 1 – search.list  (costs 100 quota units)
     params: dict = {
@@ -106,9 +107,7 @@ def _search_via_api(
         timeout=15,
     )
     details_resp.raise_for_status()
-    details_map: dict[str, dict] = {
-        it["id"]: it for it in details_resp.json().get("items", [])
-    }
+    details_map: dict[str, dict] = {it["id"]: it for it in details_resp.json().get("items", [])}
 
     results: list[dict] = []
     for item in items:
@@ -126,16 +125,18 @@ def _search_via_api(
             or thumbnails.get("default", {}).get("url", "")
         )
 
-        results.append({
-            "title": snippet.get("title", ""),
-            "url": f"https://www.youtube.com/watch?v={vid}",
-            "duration": _parse_iso8601_duration(content.get("duration", "")),
-            "published_at": _parse_iso_timestamp(snippet.get("publishedAt", "")),
-            "thumbnail": thumbnail,
-            "channel": snippet.get("channelTitle", ""),
-            "views": int(stats.get("viewCount", 0)),
-            "likes": int(stats.get("likeCount", 0)),
-        })
+        results.append(
+            {
+                "title": snippet.get("title", ""),
+                "url": f"https://www.youtube.com/watch?v={vid}",
+                "duration": _parse_iso8601_duration(content.get("duration", "")),
+                "published_at": _parse_iso_timestamp(snippet.get("publishedAt", "")),
+                "thumbnail": thumbnail,
+                "channel": snippet.get("channelTitle", ""),
+                "views": int(stats.get("viewCount", 0)),
+                "likes": int(stats.get("likeCount", 0)),
+            }
+        )
 
     return results
 
@@ -168,7 +169,8 @@ def _parse_iso_timestamp(iso_str: str) -> int:
 # yt-dlp fallback (flat extraction – no per-video page fetch)
 # ---------------------------------------------------------------------------
 
-def _search_via_ytdlp_flat(query: str, max_results: int) -> List[dict]:
+
+def _search_via_ytdlp_flat(query: str, max_results: int) -> list[dict]:
     """Search using yt-dlp with extract_flat=True (partial metadata)."""
     try:
         import yt_dlp
@@ -202,16 +204,18 @@ def _search_via_ytdlp_flat(query: str, max_results: int) -> List[dict]:
                 thumbnail = _get_best_thumbnail(entry, video_id)
                 published_at = _parse_upload_date(entry.get("upload_date"))
 
-                results.append({
-                    "title": entry.get("title", ""),
-                    "url": f"https://www.youtube.com/watch?v={video_id}",
-                    "duration": entry.get("duration", 0) or 0,
-                    "published_at": published_at,
-                    "thumbnail": thumbnail,
-                    "channel": entry.get("channel", "") or entry.get("uploader", ""),
-                    "views": entry.get("view_count", 0) or 0,
-                    "likes": entry.get("like_count", 0) or 0,
-                })
+                results.append(
+                    {
+                        "title": entry.get("title", ""),
+                        "url": f"https://www.youtube.com/watch?v={video_id}",
+                        "duration": entry.get("duration", 0) or 0,
+                        "published_at": published_at,
+                        "thumbnail": thumbnail,
+                        "channel": entry.get("channel", "") or entry.get("uploader", ""),
+                        "views": entry.get("view_count", 0) or 0,
+                        "likes": entry.get("like_count", 0) or 0,
+                    }
+                )
 
     except Exception as exc:
         logger.error("yt-dlp flat search failed: %s", exc)

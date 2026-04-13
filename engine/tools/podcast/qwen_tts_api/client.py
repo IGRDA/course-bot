@@ -15,11 +15,9 @@ import time
 import zipfile
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
 
 from ..base_engine import BaseTTSEngine
 from ..models import Conversation, Message
-
 
 # Remote Lambda Function URL endpoint
 QWEN_TTS_API_URL = "https://noyr5xagtj2ofkqq3eef7knha40lsogm.lambda-url.eu-west-1.on.aws"
@@ -51,7 +49,7 @@ QWEN_TTS_API_LANGUAGES: dict[str, str] = {
 }
 
 DEFAULT_CONCURRENCY = 20  # max texts per batch API call (one Lambda invocation)
-MAX_BATCH_SIZE = 20       # hard cap matching server-side MAX_BATCH_SIZE
+MAX_BATCH_SIZE = 20  # hard cap matching server-side MAX_BATCH_SIZE
 MAX_RETRIES = 6
 RETRY_BACKOFF_BASE = 5.0  # seconds — gives GPU queue time to drain on timeout
 
@@ -70,9 +68,9 @@ class QwenTTSApiEngine(BaseTTSEngine):
     def __init__(
         self,
         language: str = "es",
-        speaker_map: Optional[dict[str, str]] = None,
-        api_key: Optional[str] = None,
-        api_url: Optional[str] = None,
+        speaker_map: dict[str, str] | None = None,
+        api_key: str | None = None,
+        api_url: str | None = None,
         concurrency: int = DEFAULT_CONCURRENCY,
     ):
         """Initialize the Qwen TTS API engine.
@@ -88,19 +86,14 @@ class QwenTTSApiEngine(BaseTTSEngine):
 
         self.api_key = api_key or os.environ.get("CLOUD_GATEWAY_API_KEY")
         if not self.api_key:
-            raise ValueError(
-                "Qwen TTS API key required. Set CLOUD_GATEWAY_API_KEY env var "
-                "or pass api_key parameter."
-            )
+            raise ValueError("Qwen TTS API key required. Set CLOUD_GATEWAY_API_KEY env var or pass api_key parameter.")
 
         self.api_url = api_url or QWEN_TTS_API_URL
         self.concurrency = concurrency
         self.language_str = QWEN_TTS_API_LANGUAGES.get(language, "Spanish")
 
         if not self.speaker_map:
-            self.speaker_map = QWEN_TTS_API_VOICE_MAP.get(
-                language, QWEN_TTS_API_VOICE_MAP["es"]
-            ).copy()
+            self.speaker_map = QWEN_TTS_API_VOICE_MAP.get(language, QWEN_TTS_API_VOICE_MAP["es"]).copy()
 
     def get_speaker_for_role(self, role: str) -> str:
         """Get the API profile_name for a given role.
@@ -123,7 +116,7 @@ class QwenTTSApiEngine(BaseTTSEngine):
         self,
         message: Message,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
     ) -> str:
         """Synthesize a single message to a WAV file via the gateway API.
 
@@ -141,9 +134,7 @@ class QwenTTSApiEngine(BaseTTSEngine):
 
         profile_name = self.get_speaker_for_role(message.role)
         language_str = (
-            QWEN_TTS_API_LANGUAGES.get(language_code, self.language_str)
-            if language_code
-            else self.language_str
+            QWEN_TTS_API_LANGUAGES.get(language_code, self.language_str) if language_code else self.language_str
         )
 
         payload = {
@@ -191,12 +182,12 @@ class QwenTTSApiEngine(BaseTTSEngine):
                     status = getattr(getattr(exc, "response", None), "status_code", None)
                     if status in (500, 502, 503):
                         # Server timeout — wait longer so the queue drains
-                        wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                        wait = RETRY_BACKOFF_BASE * (2**attempt)
                     elif status == 429:
                         # Lambda concurrency cap hit — back off hard
-                        wait = RETRY_BACKOFF_BASE * (3 ** attempt)
+                        wait = RETRY_BACKOFF_BASE * (3**attempt)
                     else:
-                        wait = RETRY_BACKOFF_BASE ** attempt
+                        wait = RETRY_BACKOFF_BASE**attempt
                     wait = min(wait, 120)  # cap at 2 minutes
                     print(
                         f"   ⚠️ API error (attempt {attempt + 1}/{MAX_RETRIES}, "
@@ -204,9 +195,7 @@ class QwenTTSApiEngine(BaseTTSEngine):
                     )
                     time.sleep(wait)
 
-        raise RuntimeError(
-            f"Failed to synthesize message after {MAX_RETRIES} attempts: {last_exc}"
-        )
+        raise RuntimeError(f"Failed to synthesize message after {MAX_RETRIES} attempts: {last_exc}")
 
     def _send_batch(self, texts: list[str], profile_name: str, lang: str) -> list[bytes]:
         """Send a batch of texts for one speaker and return WAV bytes in order."""
@@ -246,12 +235,12 @@ class QwenTTSApiEngine(BaseTTSEngine):
                 if attempt < MAX_RETRIES - 1:
                     status = getattr(getattr(exc, "response", None), "status_code", None)
                     if status in (500, 502, 503):
-                        wait = RETRY_BACKOFF_BASE * (2 ** attempt)
+                        wait = RETRY_BACKOFF_BASE * (2**attempt)
                     elif status == 429:
-                        wait = RETRY_BACKOFF_BASE * (3 ** attempt)
+                        wait = RETRY_BACKOFF_BASE * (3**attempt)
                     else:
-                        wait = RETRY_BACKOFF_BASE ** attempt
-                    
+                        wait = RETRY_BACKOFF_BASE**attempt
+
                     wait = min(wait, 120)
                     print(
                         f"   ⚠️ Batch API error (attempt {attempt + 1}/{MAX_RETRIES}, "
@@ -265,9 +254,9 @@ class QwenTTSApiEngine(BaseTTSEngine):
         self,
         conversation: Conversation,
         output_path: str,
-        language_code: Optional[str] = None,
+        language_code: str | None = None,
         silence_duration_ms: int = 500,
-        progress_callback: Optional[callable] = None,
+        progress_callback: callable | None = None,
     ) -> str:
         """Synthesize a full conversation to a single audio file.
 
@@ -288,17 +277,15 @@ class QwenTTSApiEngine(BaseTTSEngine):
         if len(conversation) == 0:
             raise ValueError("Conversation cannot be empty")
 
-        import wave
         import subprocess
+        import wave
+
         total = len(conversation)
         self.segment_durations_ms = [None] * total
         lang = QWEN_TTS_API_LANGUAGES.get(language_code, self.language_str) if language_code else self.language_str
 
         with tempfile.TemporaryDirectory(prefix="qwen_tts_api_") as temp_dir:
-            temp_paths = [
-                os.path.join(temp_dir, f"segment_{idx:04d}.wav")
-                for idx in range(total)
-            ]
+            temp_paths = [os.path.join(temp_dir, f"segment_{idx:04d}.wav") for idx in range(total)]
 
             # Group message indices by speaker profile so each batch uses one voice.
             groups: dict[str, list[int]] = defaultdict(list)
@@ -310,7 +297,7 @@ class QwenTTSApiEngine(BaseTTSEngine):
 
             for profile_name, indices in groups.items():
                 for batch_start in range(0, len(indices), batch_size):
-                    batch_indices = indices[batch_start:batch_start + batch_size]
+                    batch_indices = indices[batch_start : batch_start + batch_size]
                     texts = [conversation.messages[i].content for i in batch_indices]
                     wav_bytes_list = self._send_batch(texts, profile_name, lang)
                     for i, wav_bytes in enumerate(wav_bytes_list):
@@ -354,32 +341,36 @@ class QwenTTSApiEngine(BaseTTSEngine):
 
             if output_format == "wav":
                 import shutil
+
                 shutil.copy2(combined_wav, str(out))
             else:
                 # Convert using ffmpeg (via imageio-ffmpeg bundled binary)
                 try:
                     import imageio_ffmpeg
+
                     ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
                 except ImportError:
                     ffmpeg_exe = "ffmpeg"
 
                 cmd = [
-                    ffmpeg_exe, "-y",
-                    "-i", combined_wav,
-                    "-acodec", "libmp3lame" if output_format == "mp3" else output_format,
-                    "-q:a", "2",
+                    ffmpeg_exe,
+                    "-y",
+                    "-i",
+                    combined_wav,
+                    "-acodec",
+                    "libmp3lame" if output_format == "mp3" else output_format,
+                    "-q:a",
+                    "2",
                     str(out),
                 ]
                 result = subprocess.run(cmd, capture_output=True)
                 if result.returncode != 0:
-                    raise RuntimeError(
-                        f"ffmpeg conversion failed: {result.stderr.decode()}"
-                    )
+                    raise RuntimeError(f"ffmpeg conversion failed: {result.stderr.decode()}")
 
         return str(output_path)
 
     @classmethod
-    def list_available_voices(cls, language: str = "es", api_key: Optional[str] = None) -> list[str]:
+    def list_available_voices(cls, language: str = "es", api_key: str | None = None) -> list[str]:
         """List the available voice profiles from the API.
 
         Args:
@@ -409,6 +400,7 @@ def _get_ffmpeg_exe() -> str:
     """Return path to ffmpeg binary (bundled or system)."""
     try:
         import imageio_ffmpeg
+
         return imageio_ffmpeg.get_ffmpeg_exe()
     except ImportError:
         return "ffmpeg"
@@ -467,21 +459,26 @@ def _add_background_music_ffmpeg(
     )
 
     cmd = [
-        ffmpeg, "-y",
-        "-i", voice_path,
-        "-i", music_path,
-        "-filter_complex", filter_complex,
-        "-map", "[out]",
-        "-acodec", "libmp3lame",
-        "-q:a", "2",
+        ffmpeg,
+        "-y",
+        "-i",
+        voice_path,
+        "-i",
+        music_path,
+        "-filter_complex",
+        filter_complex,
+        "-map",
+        "[out]",
+        "-acodec",
+        "libmp3lame",
+        "-q:a",
+        "2",
         output_path,
     ]
 
     result = subprocess.run(cmd, capture_output=True)
     if result.returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg background music mixing failed: {result.stderr.decode()}"
-        )
+        raise RuntimeError(f"ffmpeg background music mixing failed: {result.stderr.decode()}")
     return output_path
 
 
@@ -489,20 +486,20 @@ def generate_podcast_qwen_tts_api(
     conversation: list[dict],
     output_path: str,
     language: str = "es",
-    speaker_map: Optional[dict[str, str]] = None,
+    speaker_map: dict[str, str] | None = None,
     silence_duration_ms: int = 500,
-    progress_callback: Optional[callable] = None,
+    progress_callback: callable | None = None,
     # API-specific
-    api_key: Optional[str] = None,
-    api_url: Optional[str] = None,
+    api_key: str | None = None,
+    api_url: str | None = None,
     concurrency: int = DEFAULT_CONCURRENCY,
     # Metadata options
     title: str = "Module",
     artist: str = "Adinhub",
     album: str = "Course",
-    track_number: Optional[int] = None,
+    track_number: int | None = None,
     # Background music options
-    music_path: Optional[str] = None,
+    music_path: str | None = None,
     intro_duration_ms: int = 5000,
     outro_duration_ms: int = 5000,
     intro_fade_ms: int = 3000,
@@ -586,6 +583,7 @@ def generate_podcast_qwen_tts_api(
     if output_path.lower().endswith(".mp3"):
         try:
             from ..audio_utils import add_metadata
+
             add_metadata(
                 file_path=output_path,
                 title=title,

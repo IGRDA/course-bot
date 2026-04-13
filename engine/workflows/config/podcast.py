@@ -7,17 +7,12 @@ from pydantic import BaseModel, Field
 
 class PodcastConfig(BaseModel):
     """Configuration for podcast/audio generation."""
-    
-    target_words: int = Field(
-        default=600,
-        description="Target word count per module podcast"
-    )
-    tts_engine: Literal["edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"] = Field(
-        default="qwen_tts_api",
-        description="TTS engine for podcast generation"
-    )
+
+    target_words: int = Field(default=600, description="Target word count per module podcast")
+    tts_engine: Literal[
+        "edge", "coqui", "elevenlabs", "chatterbox", "openai_tts", "qwen_tts", "mlx_tts", "qwen_tts_api"
+    ] = Field(default="qwen_tts_api", description="TTS engine for podcast generation")
     speaker_map: dict[str, str] | None = Field(
         default=None,
-        description="Custom speaker mapping for podcast voices (e.g., {'host': 'es-ES-AlvaroNeural', 'guest': 'es-ES-XimenaNeural'})"
+        description="Custom speaker mapping for podcast voices (e.g., {'host': 'es-ES-AlvaroNeural', 'guest': 'es-ES-XimenaNeural'})",
     )
-

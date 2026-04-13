@@ -65,6 +65,7 @@ _JOB_EVENT_TYPES = frozenset({ev.EVENT_APP_MENTION, ev.EVENT_MESSAGE})
 # HandlerProvider protocol
 # ---------------------------------------------------------------------------
 
+
 class HandlerProvider(Protocol):
     """Provides handler methods and bot identity for wiring."""
 
@@ -81,6 +82,7 @@ class HandlerProvider(Protocol):
 # ---------------------------------------------------------------------------
 # SlackWebhookHandler
 # ---------------------------------------------------------------------------
+
 
 class SlackWebhookHandler:
     """HTTP handler for Slack Events API.
@@ -229,7 +231,9 @@ class SlackWebhookHandler:
     # -- Job dispatch (heavy events) ----------------------------------------
 
     async def _safe_dispatch_to_job(
-        self, event: dict[str, Any], event_type: str,
+        self,
+        event: dict[str, Any],
+        event_type: str,
     ) -> None:
         """Background wrapper that ensures dispatch exceptions are logged."""
         try:
@@ -243,7 +247,9 @@ class SlackWebhookHandler:
             )
 
     async def _dispatch_to_job(
-        self, event: dict[str, Any], event_type: str,
+        self,
+        event: dict[str, Any],
+        event_type: str,
     ) -> None:
         """Run filters + acknowledgers locally, then dispatch to a Cloud Run Job."""
         regs = self._regs_for_event_type(event_type)
@@ -313,7 +319,9 @@ class SlackWebhookHandler:
     # -- Lightweight dispatch (in-process) ----------------------------------
 
     def _dispatch_lightweight(
-        self, event: dict[str, Any], event_type: str,
+        self,
+        event: dict[str, Any],
+        event_type: str,
     ) -> None:
         """Dispatch lightweight events in-process (reactions, member_joined)."""
         regs = self._regs_for_event_type(event_type)
@@ -332,7 +340,8 @@ class SlackWebhookHandler:
     # -- Helpers ------------------------------------------------------------
 
     def _regs_for_event_type(
-        self, event_type: str,
+        self,
+        event_type: str,
     ) -> list[EventRegistration[dict[str, Any]]]:
         if event_type == ev.EVENT_APP_MENTION:
             return self._app_mention_regs
@@ -383,6 +392,7 @@ class SlackWebhookHandler:
 # ---------------------------------------------------------------------------
 # Convenience constructor
 # ---------------------------------------------------------------------------
+
 
 def new_bot_webhook(
     signing_secret: str,

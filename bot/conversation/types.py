@@ -1,6 +1,4 @@
-"""Conversation types — ConversationRequest and WorkspaceInfo.
-
-"""
+"""Conversation types — ConversationRequest and WorkspaceInfo."""
 
 from __future__ import annotations
 
